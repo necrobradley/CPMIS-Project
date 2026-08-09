@@ -1,0 +1,106 @@
+{
+  "id": "PYX358Gu7Zc6z6p6",
+  "name": "Workflow 2 - Tender Analysis Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tender-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-tender",
+      "name": "Webhook - Terima Tender",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "tender-analysis"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"processing\", \"document_id\": {{ $json.body.document_id }} }"
+      },
+      "id": "respond-immediately",
+      "name": "Response Cepat ke Backend",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 480]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "wait-processing",
+      "name": "Tunggu Processing AI",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.body.manager_telegram_ids[0] }}",
+        "text": "=📄 *TENDER BERHASIL DIANALISIS*\n\n🏗️ *Proyek:* {{ $json.body.project_name }}\n📁 *File:* {{ $json.body.file_name }}\n👤 *Diunggah oleh:* {{ $json.body.uploader_name }}\n\n✅ *{{ $json.body.generated_tasks }} Task* berhasil digenerate otomatis!\n\n📋 *Scope Pekerjaan:*\n{{ ($json.body.scope_of_work || []).slice(0,3).join('\\n• ') }}\n\n⚠️ *Risiko Teridentifikasi:*\n{{ ($json.body.risks || []).slice(0,3).join('\\n• ') }}\n\n🏢 *Divisi yang Diperlukan:*\n{{ ($json.body.divisions_needed || []).join(', ') }}\n\n💰 *Nilai Kontrak:* {{ $json.body.contract_value ? 'Rp ' + Number($json.body.contract_value).toLocaleString('id-ID') : 'Belum diketahui' }}\n📅 *Timeline:* {{ $json.body.start_date || '-' }} s/d {{ $json.body.end_date || '-' }}\n\n_Buka dashboard untuk melihat detail task._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-notify-manager",
+      "name": "Telegram - Notif Manager",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "cpmisTelegramCredential",
+          "name": "DigiCom PMIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/n8n/tender/analyzed",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Secret",
+              "value": "={{ $env.CPMIS_N8N_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "document_id",       "value": "={{ $json.body.document_id }}" },
+            { "name": "project_id",         "value": "={{ $json.body.project_id }}" },
+            { "name": "generated_tasks",    "value": "={{ $json.body.generated_tasks }}" },
+            { "name": "notification_sent",  "value": "=true" }
+          ]
+        }
+      },
+      "id": "callback-backend",
+      "name": "Callback - Update Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Terima Tender": {
+      "main": [[{ "node": "Tunggu Processing AI", "type": "main", "index": 0 }, { "node": "Response Cepat ke Backend", "type": "main", "index": 0 }]]
+    },
+    "Tunggu Processing AI": {
+      "main": [[{ "node": "Telegram - Notif Manager", "type": "main", "index": 0 }]]
+    },
+    "Telegram - Notif Manager": {
+      "main": [[{ "node": "Callback - Update Backend", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  }
+}
