@@ -1,0 +1,117 @@
+{
+  "id": "stakeholderReminderV26",
+  "name": "Workflow 3 - Stakeholder Task Reminder (Cron Harian)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron - Setiap Hari 08:00 WIB",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/n8n/reminders/prepare",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.CPMIS_N8N_SECRET }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "horizon_days", "value": "=3" },
+            { "name": "include_stalled", "value": "=true" }
+          ]
+        }
+      },
+      "id": "prepare-reminders",
+      "name": "Backend - Susun Reminder Stakeholder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const response = $input.all()[0]?.json || {};\nconst messages = Array.isArray(response.telegram_messages) ? response.telegram_messages : [];\nreturn messages.map((message) => ({ json: message }));"
+      },
+      "id": "split-telegram",
+      "name": "Split Payload Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegram_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-reminder",
+      "name": "Telegram - Kirim Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "cpmisTelegramCredential",
+          "name": "DigiCom PMIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/n8n/reminders/delivered",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.CPMIS_N8N_SECRET }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "notification_ids", "value": "={{ JSON.stringify($json.notification_ids || []) }}" },
+            { "name": "task_id", "value": "={{ $json.task_id }}" },
+            { "name": "user_id", "value": "={{ $json.user_id }}" },
+            { "name": "telegram_id", "value": "={{ $json.telegram_id }}" },
+            { "name": "success", "value": "=true" }
+          ]
+        }
+      },
+      "id": "callback-delivered",
+      "name": "Callback - Tandai Telegram Terkirim",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Cron - Setiap Hari 08:00 WIB": {
+      "main": [[{ "node": "Backend - Susun Reminder Stakeholder", "type": "main", "index": 0 }]]
+    },
+    "Backend - Susun Reminder Stakeholder": {
+      "main": [[{ "node": "Split Payload Telegram", "type": "main", "index": 0 }]]
+    },
+    "Split Payload Telegram": {
+      "main": [[{ "node": "Telegram - Kirim Reminder", "type": "main", "index": 0 }]]
+    },
+    "Telegram - Kirim Reminder": {
+      "main": [[{ "node": "Callback - Tandai Telegram Terkirim", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  }
+}

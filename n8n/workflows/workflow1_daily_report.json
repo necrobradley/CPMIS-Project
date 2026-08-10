@@ -1,0 +1,157 @@
+{
+  "id": "OyxxkSdEqFjP8iM9",
+  "name": "Workflow 1 - Daily Report Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "daily-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Terima Laporan",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "daily-report"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.severity }}",
+              "operation": "equal",
+              "value2": "high"
+            }
+          ]
+        }
+      },
+      "id": "check-severity",
+      "name": "Cek Severity Risiko",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/ai/summarize-report/{{ $json.body.report_id }}",
+        "authentication": "genericCredentialType",
+        "method": "POST",
+        "options": {}
+      },
+      "id": "ai-summarize",
+      "name": "AI - Summarize Laporan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.body.manager_telegram_ids[0] }}",
+        "text": "=🚨 *LAPORAN RISIKO {{ $json.body.severity.toUpperCase() }}*\n\n📋 *Proyek:* {{ $json.body.project_name }}\n👷 *Pelapor:* {{ $json.body.reporter_name }}\n\n📝 *Ringkasan:*\n{{ $json.body.ai_summary || 'Sedang diproses...' }}\n\n⚠️ *Risiko Terdeteksi:*\n{{ $json.body.ai_risks || '-' }}\n\n🕐 Diterima: {{ new Date().toLocaleString('id-ID') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-notify-high",
+      "name": "Telegram - Notif Risiko Tinggi",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "cpmisTelegramCredential",
+          "name": "DigiCom PMIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.body.reporter_telegram_id }}",
+        "text": "=✅ Laporan harian Anda untuk proyek *{{ $json.body.project_name }}* telah diterima dan diproses.\n\n📝 Ringkasan AI sedang dibuat...",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-confirm-reporter",
+      "name": "Telegram - Konfirmasi ke Pelapor",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 420],
+      "credentials": {
+        "telegramApi": {
+          "id": "cpmisTelegramCredential",
+          "name": "DigiCom PMIS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/n8n/daily-report/processed",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Secret",
+              "value": "={{ $env.CPMIS_N8N_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "report_id",         "value": "={{ $json.body.report_id }}" },
+            { "name": "ai_summary",         "value": "={{ $json.body.ai_summary }}" },
+            { "name": "ai_risks",           "value": "={{ $json.body.ai_risks }}" },
+            { "name": "severity",           "value": "={{ $json.body.severity }}" },
+            { "name": "notification_sent",  "value": "=true" }
+          ]
+        }
+      },
+      "id": "callback-backend",
+      "name": "Callback - Update Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"received\", \"report_id\": {{ $json.body.report_id }} }"
+      },
+      "id": "respond-webhook",
+      "name": "Response ke Backend",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 520]
+    }
+  ],
+  "connections": {
+    "Webhook - Terima Laporan": {
+      "main": [[{ "node": "Cek Severity Risiko", "type": "main", "index": 0 }, { "node": "Response ke Backend", "type": "main", "index": 0 }]]
+    },
+    "Cek Severity Risiko": {
+      "main": [
+        [{ "node": "AI - Summarize Laporan", "type": "main", "index": 0 }],
+        [{ "node": "Telegram - Konfirmasi ke Pelapor", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI - Summarize Laporan": {
+      "main": [[{ "node": "Telegram - Notif Risiko Tinggi", "type": "main", "index": 0 }]]
+    },
+    "Telegram - Notif Risiko Tinggi": {
+      "main": [[{ "node": "Callback - Update Backend", "type": "main", "index": 0 }]]
+    },
+    "Telegram - Konfirmasi ke Pelapor": {
+      "main": [[{ "node": "Callback - Update Backend", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "Workflow 4 - Weekly Summary (Cron Jumat)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 17 * * 5" }]
+        }
+      },
+      "id": "cron-weekly",
+      "name": "Cron - Jumat 17:00 WIB",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/projects?status=active",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.CPMIS_SYSTEM_TOKEN }}" }
+          ]
+        }
+      },
+      "id": "fetch-projects",
+      "name": "Ambil Proyek Aktif",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CPMIS_BACKEND_URL }}/api/v1/n8n/weekly-summary/sent",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{ $env.CPMIS_N8N_SECRET }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "project_id",  "value": "={{ $json.id }}" },
+            { "name": "sent_to",     "value": "=[]" }
+          ]
+        }
+      },
+      "id": "callback-weekly",
+      "name": "Callback - Catat Weekly Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Cron - Jumat 17:00 WIB": {
+      "main": [[{ "node": "Ambil Proyek Aktif", "type": "main", "index": 0 }]]
+    },
+    "Ambil Proyek Aktif": {
+      "main": [[{ "node": "Callback - Catat Weekly Summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "Asia/Jakarta"
+  }
+}
