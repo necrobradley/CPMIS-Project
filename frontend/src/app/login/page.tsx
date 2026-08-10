@@ -81,19 +81,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 p-4 bg-white rounded-xl border border-slate-200">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Akun Demo</p>
-            <div className="space-y-1.5">
-              {[{role:'Director',email:'director@cpmis.id',pwd:'budi1234'},{role:'Manager',email:'manager@cpmis.id',pwd:'siti1234'},{role:'Staff',email:'staff1@cpmis.id',pwd:'andi1234'}].map(a=>(
-                <button key={a.email} type="button" onClick={()=>{setEmail(a.email);setPassword(a.pwd)}}
-                  className="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-slate-50 transition flex items-center justify-between group">
-                  <span className="text-slate-600 font-medium">{a.role}</span>
-                  <span className="text-slate-400 group-hover:text-brand-500 transition">{a.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="mt-6 text-center">
             <p className="text-sm font-medium text-slate-600">Akun dibuat oleh admin aplikasi perusahaan.</p>
             <p className="mt-1 text-xs text-slate-400">Hubungi admin untuk aktivasi akun atau reset temporary password.</p>
