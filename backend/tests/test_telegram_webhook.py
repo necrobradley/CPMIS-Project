@@ -1,11 +1,13 @@
 import pytest
 from fastapi import HTTPException
+from telegram.ext import Application
 
 from app.api.v1.endpoints.telegram_webhook import (
     telegram_webhook_health,
     verify_telegram_webhook_secret,
 )
 from app.core.config import settings
+from app.services.telegram_service import create_bot_app
 
 
 def test_webhook_rejects_when_not_configured(monkeypatch):
@@ -39,3 +41,11 @@ def test_webhook_health_reports_serverless_mode(monkeypatch):
         "configured": True,
         "mode": "webhook",
     }
+
+
+def test_bot_application_can_be_built_on_supported_python(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "123456:TEST_TOKEN")
+
+    bot_app = create_bot_app()
+
+    assert isinstance(bot_app, Application)

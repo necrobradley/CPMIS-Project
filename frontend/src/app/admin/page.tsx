@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { settingsApi, usersApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import MnbcDatasetImport from '@/components/MnbcDatasetImport'
+import ProjectDatasetImport from '@/components/ProjectDatasetImport'
 import {
   CommercialEntitlement, CommercialPlan, CommercialPlanKey, CommercialReadiness,
   CommercialTenant, CommercialUsage, FeatureFlag,
@@ -245,7 +245,7 @@ export default function AdminConsolePage() {
         </div>
       </div>
 
-      <MnbcDatasetImport />
+      <ProjectDatasetImport />
 
       <div className="card overflow-hidden">
         <div className="border-b border-slate-100 p-5">

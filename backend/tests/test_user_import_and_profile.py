@@ -74,9 +74,18 @@ def test_user_change_password_rejects_wrong_current_password():
 
 
 @pytest.mark.asyncio
-async def test_user_can_upload_profile_avatar(tmp_path, monkeypatch):
+async def test_user_can_upload_profile_avatar(monkeypatch):
     db, admin = build_database()
-    monkeypatch.setattr(users_endpoint, "AVATAR_DIR", tmp_path)
+    uploaded = {}
+    monkeypatch.setattr(
+        users_endpoint.storage_service,
+        "upload_file",
+        lambda content, object_name, content_type: uploaded.update({
+            "content": content,
+            "object_name": object_name,
+            "content_type": content_type,
+        }) or object_name,
+    )
     upload = UploadFile(
         filename="avatar.png",
         file=BytesIO(b"fake-png"),
@@ -86,6 +95,7 @@ async def test_user_can_upload_profile_avatar(tmp_path, monkeypatch):
     result = await upload_my_avatar(upload, db, admin)
 
     db.refresh(admin)
-    assert result["avatar_url"].startswith("/uploads/avatars/user-")
+    assert result["avatar_url"].startswith(f"/api/v1/users/{admin.id}/avatar/user-")
     assert admin.avatar_url == result["avatar_url"]
-    assert (tmp_path / result["avatar_url"].split("/")[-1]).exists()
+    assert uploaded["object_name"].startswith(f"avatars/user-{admin.id}-")
+    assert uploaded["content"] == b"fake-png"

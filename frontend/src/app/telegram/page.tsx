@@ -119,7 +119,7 @@ export default function TelegramPage() {
             ))}
             {!users.length && (
               <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">
-                Belum ada pengguna. Impor dataset MNBC terlebih dahulu.
+                Belum ada pengguna. Buat atau impor akun proyek terlebih dahulu.
               </div>
             )}
           </div>

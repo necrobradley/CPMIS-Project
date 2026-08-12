@@ -17,14 +17,14 @@ from app.services.audit_service import log_audit
 router = APIRouter(prefix="/system", tags=["System"])
 
 
-async def _read_mnbc_archive(dataset: UploadFile) -> bytes:
+async def _read_project_archive(dataset: UploadFile) -> bytes:
     filename = (dataset.filename or "").lower()
     if not filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Dataset MNBC harus berupa file ZIP")
+        raise HTTPException(status_code=400, detail="Paket data proyek harus berupa file ZIP")
 
     content = await dataset.read()
     if not content:
-        raise HTTPException(status_code=400, detail="File dataset MNBC kosong")
+        raise HTTPException(status_code=400, detail="File paket data proyek kosong")
     max_bytes = max(1, settings.BOOTSTRAP_MAX_UPLOAD_MB) * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(
@@ -34,7 +34,7 @@ async def _read_mnbc_archive(dataset: UploadFile) -> bytes:
     return content
 
 
-def _import_mnbc_archive(
+def _import_project_archive(
     db: Session,
     content: bytes,
     *,
@@ -43,9 +43,9 @@ def _import_mnbc_archive(
     telegram_id: str | None,
 ) -> dict:
     try:
-        from app.services.mnbc_dataset import import_mnbc_demo
+        from app.services.project_dataset import import_project_dataset
 
-        return import_mnbc_demo(
+        return import_project_dataset(
             db,
             content,
             admin_email=admin_email,
@@ -57,16 +57,16 @@ def _import_mnbc_archive(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/import/mnbc", summary="Impor dataset MNBC dari Admin Console")
-async def import_mnbc_project_from_website(
+@router.post("/import/project-dataset", summary="Impor paket data proyek dari Admin Console")
+async def import_project_from_website(
     dataset: UploadFile = File(...),
     telegram_id: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN)),
 ):
-    """Impor idempotent satu proyek MNBC menggunakan akun admin yang sedang login."""
-    content = await _read_mnbc_archive(dataset)
-    result = _import_mnbc_archive(
+    """Impor idempotent satu proyek menggunakan akun admin yang sedang login."""
+    content = await _read_project_archive(dataset)
+    result = _import_project_archive(
         db,
         content,
         admin_email=current_user.email,
@@ -77,21 +77,27 @@ async def import_mnbc_project_from_website(
     log_audit(
         db,
         actor_id=current_user.id,
-        action="system.mnbc_dataset_imported",
+        action="system.project_dataset_imported",
         entity_type="project",
         entity_id=result["project_id"],
         project_id=result["project_id"],
-        summary=f"Dataset MNBC diimpor dari Admin Console oleh {current_user.email}",
-        after=result,
+        summary=f"Paket data proyek diimpor dari Admin Console oleh {current_user.email}",
+        after={
+            **{key: value for key, value in result.items() if key != "generated_accounts"},
+            "generated_accounts": [
+                {key: value for key, value in account.items() if key != "temporary_password"}
+                for account in result.get("generated_accounts", [])
+            ],
+        },
     )
     db.commit()
     return result
 
 
-@router.post("/bootstrap/mnbc", summary="Impor satu proyek demo MNBC dari files.zip")
-async def bootstrap_mnbc_project(
+@router.post("/bootstrap/project-dataset", summary="Setup awal dan impor paket data proyek")
+async def bootstrap_project(
     dataset: UploadFile = File(...),
-    admin_email: str = Form("admin.mnbc@demo.local"),
+    admin_email: str = Form("admin@cpmis.example.com"),
     admin_password: str = Form(...),
     telegram_id: str | None = Form(None),
     x_bootstrap_secret: str | None = Header(None),
@@ -107,8 +113,8 @@ async def bootstrap_mnbc_project(
     if len(admin_password) < 12:
         raise HTTPException(status_code=400, detail="Password admin minimal 12 karakter")
 
-    content = await _read_mnbc_archive(dataset)
-    return _import_mnbc_archive(
+    content = await _read_project_archive(dataset)
+    return _import_project_archive(
         db,
         content,
         admin_email=admin_email,

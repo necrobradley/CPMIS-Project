@@ -1,4 +1,4 @@
-"""Impor files.zip MNBC ke DATABASE_URL yang aktif."""
+"""Impor paket data proyek ke DATABASE_URL yang aktif."""
 import argparse
 import json
 import sys
@@ -6,12 +6,12 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.db.database import SessionLocal, create_tables
-from app.services.mnbc_dataset import import_mnbc_demo
+from app.services.project_dataset import import_project_dataset
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Import dataset demo MNBC-2025")
-    parser.add_argument("zip_path", type=Path, help="Lokasi files.zip")
+    parser = argparse.ArgumentParser(description="Impor paket data proyek")
+    parser.add_argument("zip_path", type=Path, help="Lokasi paket ZIP proyek")
     args = parser.parse_args()
 
     if not args.zip_path.is_file():
@@ -24,7 +24,7 @@ def main() -> int:
     create_tables()
     db = SessionLocal()
     try:
-        result = import_mnbc_demo(
+        result = import_project_dataset(
             db,
             args.zip_path.read_bytes(),
             admin_email=settings.DEMO_ADMIN_EMAIL,

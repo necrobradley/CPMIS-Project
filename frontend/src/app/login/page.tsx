@@ -85,7 +85,7 @@ export default function LoginPage() {
             <p className="text-sm font-medium text-slate-600">Akun dibuat oleh admin aplikasi perusahaan.</p>
             <p className="mt-1 text-xs text-slate-400">Hubungi admin untuk aktivasi akun atau reset temporary password.</p>
             <Link href="/setup" className="mt-4 inline-flex text-sm font-semibold text-brand-600 hover:text-brand-700">
-              Setup awal dan import dataset MNBC
+              Setup awal dan import paket data proyek
             </Link>
           </div>
         </div>

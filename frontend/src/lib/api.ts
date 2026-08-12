@@ -110,7 +110,7 @@ export const reportsApi = {
   update: (id: number, data: Record<string, unknown>) => api.patch(`/reports/${id}`, data),
   uploadEvidence: (id: number, formData: FormData) =>
     api.post(`/reports/${id}/evidence`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  evidenceDownloadUrl: (id: number) => api.get(`/reports/evidence/${id}/download-url`),
+  downloadEvidence: (id: number) => api.get(`/reports/evidence/${id}/download`, { responseType: 'blob' }),
   deleteEvidence: (id: number) => api.delete(`/reports/evidence/${id}`),
   submit: (id: number) => api.post(`/reports/${id}/submit`),
   decide: (id: number, decision: string, note?: string) =>
@@ -190,7 +190,7 @@ export const documentsApi = {
     api.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   qa: (project_id: number, question: string) =>
     api.post('/documents/qa', { project_id, question }),
-  downloadUrl: (id: number) => api.get(`/documents/${id}/download-url`),
+  download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
   analysis: (id: number) => api.get(`/documents/${id}/analysis`),
   previewSync: (id: number, includeTasks = true, forceNew = false) =>
     api.post(`/documents/${id}/sync/preview`, { include_tasks: includeTasks, force_new: forceNew }),
@@ -272,15 +272,15 @@ export const researchApi = {
 // System readiness
 export const systemApi = {
   status: () => api.get('/system/status'),
-  bootstrapMnbc: (formData: FormData, bootstrapSecret: string) =>
-    api.post('/system/bootstrap/mnbc', formData, {
+  bootstrapProjectDataset: (formData: FormData, bootstrapSecret: string) =>
+    api.post('/system/bootstrap/project-dataset', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         'X-Bootstrap-Secret': bootstrapSecret,
       },
     }),
-  importMnbc: (formData: FormData) =>
-    api.post('/system/import/mnbc', formData, {
+  importProjectDataset: (formData: FormData) =>
+    api.post('/system/import/project-dataset', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 }

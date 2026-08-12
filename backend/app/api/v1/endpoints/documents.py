@@ -1,12 +1,11 @@
 """
 Documents Endpoint - AI CPMIS
-Upload file ke MinIO, AI analysis, signed URL, versioning.
+Upload file ke private object storage, AI analysis, dan versioning.
 """
 import uuid
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -81,7 +80,6 @@ ALLOWED_TYPES = {
 
 @router.post("/upload", summary="Upload file ke MinIO + analisis AI opsional")
 async def upload_document(
-    background_tasks: BackgroundTasks,
     project_id: int = Form(...),
     doc_type: DocumentType = Form(...),
     analyze_with_ai: bool = Form(False),
@@ -90,8 +88,8 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Upload file ke MinIO storage (private bucket).
-    Opsional: langsung analisis dengan AI.
+    Upload file ke private object storage. Bila diminta, analisis AI diselesaikan
+    dalam request yang sama agar hasilnya pasti tersimpan pada runtime serverless.
     """
     _project_for_user(db, project_id, current_user)
     if current_user.role not in CONTROL_ROLES and doc_type in SENSITIVE_DOCUMENT_TYPES:
@@ -152,10 +150,24 @@ async def upload_document(
         indexed_chunks = 0
         import logging; logging.getLogger(__name__).warning(f"Document RAG indexing skipped: {exc}")
 
-    # AI analysis di background jika diminta
-    if analyze_with_ai and file.content_type in ("application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
-        background_tasks.add_task(_analyze_and_notify, doc.id, content, file.filename, doc_type.value, project_id, current_user.name, db)
+    ai_analysis_supported = file.content_type in (
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    ai_analysis_requested = analyze_with_ai and ai_analysis_supported
+    ai_analysis_complete = False
+    if ai_analysis_requested:
+        ai_analysis_complete = await _analyze_and_notify(
+            doc.id, content, file.filename, doc_type.value,
+            project_id, current_user.name, db,
+        )
+
+    if ai_analysis_complete:
+        message = "Upload dan analisis AI berhasil"
+    elif ai_analysis_requested:
+        message = "Dokumen tersimpan, tetapi analisis AI gagal. Periksa endpoint model."
+    else:
+        message = "Upload berhasil"
 
     return {
         "document_id": doc.id,
@@ -164,12 +176,13 @@ async def upload_document(
         "version":     version,
         "size_bytes":  len(content),
         "rag_chunks":  indexed_chunks,
-        "message":     "Upload berhasil" + (" — AI analysis berjalan di background" if analyze_with_ai else ""),
+        "ai_analysis_complete": ai_analysis_complete,
+        "message":     message,
     }
 
 
 async def _analyze_and_notify(doc_id, content, filename, doc_type, project_id, uploader_name, db):
-    """Background task: AI analysis lalu trigger N8N."""
+    """Jalankan analisis AI, persist hasil, lalu trigger integrasi notifikasi."""
     from app.models.user import Project
     try:
         analysis = await ai_service.analyze_document(content=content, filename=filename, doc_type=doc_type)
@@ -187,8 +200,10 @@ async def _analyze_and_notify(doc_id, content, filename, doc_type, project_id, u
             file_name=filename, uploader_name=uploader_name,
             analysis_result=analysis, generated_tasks_count=0, manager_telegram_ids=mgr_ids,
         )
+        return True
     except Exception as e:
-        import logging; logging.getLogger(__name__).error(f"BG analyze error: {e}")
+        import logging; logging.getLogger(__name__).error(f"Document AI analysis error: {e}")
+        return False
 
 
 @router.get("", summary="List dokumen per proyek")
@@ -569,6 +584,28 @@ def get_download_url(
         return {"download_url": url, "expires_hours": expires_hours, "file_name": doc.file_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal generate URL: {str(e)}")
+
+
+@router.get("/{doc_id}/download", summary="Download dokumen privat")
+def download_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    _ensure_document_access(db, doc, current_user)
+    try:
+        content = storage_service.get_file_bytes(doc.file_path)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Dokumen tidak dapat dibaca: {str(exc)}") from exc
+    safe_name = doc.file_name.replace('"', "")
+    return Response(
+        content=content,
+        media_type=doc.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
 
 
 @router.post("/{doc_id}/reindex", summary="Bangun ulang index RAG dokumen")

@@ -208,8 +208,13 @@ export default function ReportsPage() {
 
   async function downloadEvidence(evidenceId: number) {
     try {
-      const response = await reportsApi.evidenceDownloadUrl(evidenceId)
-      window.open(response.data.url, '_blank', 'noopener,noreferrer')
+      const response = await reportsApi.downloadEvidence(evidenceId)
+      const url = URL.createObjectURL(response.data)
+      const anchor = window.document.createElement('a')
+      anchor.href = url
+      anchor.download = `evidence-${evidenceId}`
+      anchor.click()
+      URL.revokeObjectURL(url)
     } catch {
       toast.error('Evidence tidak dapat dibuka')
     }

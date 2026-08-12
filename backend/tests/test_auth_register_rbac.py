@@ -40,7 +40,7 @@ async def test_public_register_rejects_director_role():
     assert db.query(User).filter(User.email == "director-candidate@example.com").first() is None
 
 
-def test_login_accepts_internal_demo_email_created_by_mnbc_setup():
+def test_login_accepts_internal_demo_email_created_by_project_setup():
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -50,8 +50,8 @@ def test_login_accepts_internal_demo_email_created_by_mnbc_setup():
     db = sessionmaker(bind=engine)()
     db.add(
         User(
-            name="Administrator MNBC",
-            email="admin.mnbc@demo.local",
+            name="Administrator Project",
+            email="admin.project@demo.local",
             password_hash=get_password_hash("strong-password-123"),
             role=UserRole.ADMIN,
             is_active=True,
@@ -67,7 +67,7 @@ def test_login_accepts_internal_demo_email_created_by_mnbc_setup():
         response = client.post(
             "/auth/login",
             json={
-                "email": "admin.mnbc@demo.local",
+                "email": "admin.project@demo.local",
                 "password": "strong-password-123",
             },
         )
