@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { communicationsApi, projectsApi, tasksApi, usersApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { demoCommunications, demoProjects, demoUsers } from '@/lib/demo-data'
 import {
   CommunicationDetail, CommunicationItem, CommunicationStatus, CommunicationType,
   Project, Task, TaskPriority, User,
@@ -106,10 +105,10 @@ export default function CommunicationsPage() {
     retry: false,
   })
 
-  const communications = communicationData ?? demoCommunications
-  const projects = projectData ?? demoProjects
+  const communications = communicationData ?? []
+  const projects = projectData ?? []
   const tasks = taskData
-  const users = userData ?? demoUsers
+  const users = userData ?? []
   const projectMap = useMemo(() => Object.fromEntries(projects.map((project) => [project.id, project])) as Record<number, Project>, [projects])
   const userMap = useMemo(() => Object.fromEntries(users.map((user) => [user.id, user])) as Record<number, User>, [users])
 

@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
-    UploadFile,
+    Response, UploadFile,
 )
 from sqlalchemy.orm import Session
 
@@ -341,6 +341,28 @@ def get_evidence_download_url(
         raise HTTPException(status_code=404, detail="Evidence tidak ditemukan")
     _ensure_report_access(current_user, evidence.report)
     return {"url": storage_service.get_signed_url(evidence.file_path)}
+
+
+@router.get("/evidence/{evidence_id}/download")
+def download_evidence(
+    evidence_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    evidence = db.query(ReportEvidence).filter(ReportEvidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Evidence tidak ditemukan")
+    _ensure_report_access(current_user, evidence.report)
+    try:
+        content = storage_service.get_file_bytes(evidence.file_path)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Evidence tidak dapat dibaca: {str(exc)}") from exc
+    safe_name = evidence.file_name.replace('"', "")
+    return Response(
+        content=content,
+        media_type=evidence.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
 
 
 @router.delete("/evidence/{evidence_id}", status_code=204)

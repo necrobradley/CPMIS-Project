@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "index.py": {
+      "excludeFiles": "{.env,.env.*,*.db,*.sqlite,*.sqlite3,tests/**,.pytest_cache/**,scripts/**,uploads/**,importtime.log,Dockerfile}"
+    }
+  },
+  "regions": ["sin1"]
+}

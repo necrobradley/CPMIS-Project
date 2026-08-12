@@ -1,12 +1,12 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { documentsApi, projectsApi } from '@/lib/api'
 import { Project, Document, DocumentAnswer, DocumentSyncSession } from '@/types'
 import { formatDate } from '@/lib/utils'
 import {
   Upload, FolderOpen, Loader2, X, FileText, FileSpreadsheet,
-  Image, File, Download, Bot, Trash2, Search, Plus, Eye, GitCompareArrows
+  Image, File, Download, Bot, Trash2, Search, Plus, Eye, GitCompareArrows, CheckCircle2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DocumentSyncPanel from '@/components/documents/DocumentSyncPanel'
@@ -62,6 +62,8 @@ export default function DocumentsPage() {
   const [qaResult, setQaResult] = useState<DocumentAnswer | null>(null)
   const [syncSession, setSyncSession] = useState<DocumentSyncSession | null>(null)
   const [syncLoadingId, setSyncLoadingId] = useState<number | null>(null)
+  const [uploadStage, setUploadStage] = useState(0)
+  const [uploadAIError, setUploadAIError] = useState(false)
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['projects'],
@@ -76,13 +78,32 @@ export default function DocumentsPage() {
 
   const uploadMutation = useMutation({
     mutationFn: (fd: FormData) => documentsApi.upload(fd),
+    onMutate: () => {
+      setUploadStage(0)
+      setUploadAIError(false)
+    },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['documents'] })
-      setShowUpload(false)
+      if (analyzeAI && !res.data.ai_analysis_complete) {
+        setUploadStage(2)
+        setUploadAIError(true)
+        toast.error(res.data.message || 'Dokumen tersimpan, tetapi analisis AI gagal')
+        return
+      }
+      setUploadStage(4)
+      window.setTimeout(() => setShowUpload(false), 700)
       toast.success(res.data.message || 'Upload berhasil!')
     },
     onError: () => toast.error('Upload gagal'),
   })
+
+  useEffect(() => {
+    if (!uploadMutation.isPending) return
+    const timer = window.setInterval(() => {
+      setUploadStage((current) => Math.min(current + 1, analyzeAI ? 3 : 1))
+    }, 1800)
+    return () => window.clearInterval(timer)
+  }, [analyzeAI, uploadMutation.isPending])
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => documentsApi.delete(id),
@@ -105,10 +126,15 @@ export default function DocumentsPage() {
 
   async function handleDownload(id: number, name: string) {
     try {
-      const res = await documentsApi.downloadUrl(id)
-      window.open(res.data.download_url, '_blank')
+      const res = await documentsApi.download(id)
+      const url = URL.createObjectURL(res.data)
+      const anchor = window.document.createElement('a')
+      anchor.href = url
+      anchor.download = name
+      anchor.click()
+      URL.revokeObjectURL(url)
     } catch {
-      toast.error('Gagal mendapatkan link download')
+      toast.error('Dokumen tidak dapat diunduh')
     }
   }
 
@@ -276,11 +302,38 @@ export default function DocumentsPage() {
                   className="rounded border-slate-300 text-brand-500" />
                 <span className="text-sm text-slate-600">Analisis otomatis dengan AI <span className="text-violet-500">(PDF/DOCX)</span></span>
               </label>}
+              {(uploadMutation.isPending || uploadAIError) && (
+                <div className={`rounded-xl border p-4 ${uploadAIError ? 'border-red-200 bg-red-50/70' : 'border-violet-200 bg-violet-50/70'}`}>
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-violet-900">
+                    <Bot size={16} className={uploadAIError ? 'text-red-600' : 'animate-pulse'} />
+                    {uploadAIError ? 'Dokumen tersimpan, analisis AI gagal' : 'Proses dokumen sedang berjalan'}
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      'Mengunggah file ke private cloud storage',
+                      'Membaca dan mengindeks isi dokumen',
+                      ...(analyzeAI ? ['Model AI menganalisis konteks proyek', 'Menyimpan hasil AI ke database'] : []),
+                    ].map((label, index) => (
+                      <div key={label} className="flex items-center gap-2 text-xs">
+                        {uploadAIError && index === uploadStage
+                          ? <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white">!</span>
+                          : index < uploadStage
+                          ? <CheckCircle2 size={14} className="text-emerald-600" />
+                          : index === uploadStage
+                            ? <Loader2 size={14} className="animate-spin text-violet-600" />
+                            : <span className="h-3.5 w-3.5 rounded-full border border-slate-300" />}
+                        <span className={index <= uploadStage ? 'font-medium text-slate-800' : 'text-slate-400'}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {uploadAIError && <p className="mt-3 text-xs text-red-700">Perbarui endpoint model aktif, lalu unggah ulang dokumen untuk menjalankan analisis.</p>}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowUpload(false)} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button type="button" disabled={uploadMutation.isPending} onClick={() => setShowUpload(false)} className="btn-secondary flex-1 justify-center">Batal</button>
                 <button type="submit" disabled={uploadMutation.isPending} className="btn-primary flex-1 justify-center">
                   {uploadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  Upload
+                  {uploadMutation.isPending ? (analyzeAI ? 'AI sedang bekerja' : 'Mengunggah') : 'Upload'}
                 </button>
               </div>
             </form>

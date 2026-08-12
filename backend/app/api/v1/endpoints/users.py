@@ -2,10 +2,9 @@ import csv
 import io
 import secrets
 import string
-from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -29,10 +28,10 @@ from app.services.project_role_catalog import (
     role_requires_division,
 )
 from app.services.report_workflow import can_access_project
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
 PROJECT_ADMIN_ROLES = {"project_admin"}
-AVATAR_DIR = Path("uploads/avatars")
 AVATAR_CONTENT_TYPES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -455,12 +454,11 @@ async def upload_my_avatar(
     if len(content) > MAX_AVATAR_BYTES:
         raise HTTPException(status_code=413, detail="Ukuran foto maksimal 2MB")
 
-    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"user-{current_user.id}-{uuid4().hex}{extension}"
-    avatar_path = AVATAR_DIR / filename
-    avatar_path.write_bytes(content)
+    object_name = f"avatars/{filename}"
+    storage_service.upload_file(content, object_name, file.content_type or "application/octet-stream")
 
-    current_user.avatar_url = f"/uploads/avatars/{filename}"
+    current_user.avatar_url = f"/api/v1/users/{current_user.id}/avatar/{filename}"
     log_audit(
         db,
         actor_id=current_user.id,
@@ -472,6 +470,24 @@ async def upload_my_avatar(
     )
     db.commit()
     return {"avatar_url": current_user.avatar_url}
+
+
+@router.get("/{user_id}/avatar/{filename}", include_in_schema=False)
+def get_user_avatar(user_id: int, filename: str):
+    if not filename.startswith(f"user-{user_id}-") or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=404, detail="Foto tidak ditemukan")
+    try:
+        content = storage_service.get_file_bytes(f"avatars/{filename}")
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Foto tidak ditemukan") from exc
+    extension = filename.rsplit(".", 1)[-1].lower()
+    media_type = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
+    }.get(extension, "application/octet-stream")
+    return Response(content=content, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/{user_id}", response_model=UserResponse)

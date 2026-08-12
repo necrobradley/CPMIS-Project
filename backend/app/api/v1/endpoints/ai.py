@@ -11,6 +11,7 @@ from app.models.user import (
 from app.schemas.schemas import TaskResponse
 from app.core.security import get_current_user
 from app.services.ai_service import AIService
+from app.services.ai_provider_routing import available_models
 from app.services.n8n_service import n8n_service
 from app.services.report_workflow import ensure_project_access
 from app.services.task_approval import request_task_approval
@@ -299,10 +300,20 @@ async def summarize_report(
         raise HTTPException(status_code=500, detail=f"Summarize gagal: {str(e)}")
 
 
+@router.get("/models", summary="Daftar model AI yang tersedia")
+def list_ai_models(
+    current_user: User = Depends(get_current_user),
+):
+    _ensure_ai_management(current_user)
+    return {"models": available_models()}
+
+
 @router.post("/chat", summary="Chat dengan AI tentang proyek")
 async def chat_with_ai(
     message: str,
     project_id: Optional[int] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -317,7 +328,16 @@ async def chat_with_ai(
         context = f"Proyek: {project.project_name}, Status: {project.status}, Progress: {project.progress_percent}%"
 
     try:
-        response = await ai_service.chat(message=message, context=context)
-        return {"response": response}
+        response = await ai_service.chat(
+            message=message,
+            context=context,
+            provider=provider,
+            model=model,
+        )
+        return {
+            "response": response,
+            "provider": provider,
+            "model": model,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI chat gagal: {str(e)}")

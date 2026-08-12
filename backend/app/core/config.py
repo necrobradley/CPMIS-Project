@@ -8,9 +8,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "2.6.0"
     DEBUG: bool = True
     SECRET_KEY: str = "change-this-in-production"
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/ai_cpmis_db"
+    DATABASE_INIT_ON_STARTUP: bool = True
     MONGODB_URL: str = "mongodb://localhost:27017"
     MONGODB_DB_NAME: str = "ai_cpmis_logs"
 
@@ -65,6 +67,15 @@ class Settings(BaseSettings):
     LMSTUDIO_API_KEY: str = ""
     LMSTUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LMSTUDIO_MODEL: str = "qwen3-8b"
+    # Generic serverless model endpoints (for example mlapi.run). One API key
+    # can serve multiple URL-per-model entries through MLAPI_MODELS_JSON.
+    MLAPI_API_KEY: str = ""
+    MLAPI_BASE_URL: str = ""
+    MLAPI_MODEL: str = "nemotron-3-ultra"
+    MLAPI_MODELS_JSON: str = ""
+    MLAPI_PAYLOAD_STYLE: str = "messages"  # messages|prompt|input
+    MLAPI_INCLUDE_MODEL: bool = False
+    MLAPI_EXTRA_PAYLOAD_JSON: str = ""
     RAG_ENABLED: bool = True
     RAG_CHUNK_SIZE: int = 1200
     RAG_CHUNK_OVERLAP: int = 180
@@ -99,6 +110,7 @@ class Settings(BaseSettings):
 
     # Storage
     STORAGE_TYPE: str = "minio"
+    BLOB_READ_WRITE_TOKEN: str = ""
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
@@ -121,6 +133,15 @@ class Settings(BaseSettings):
     # N8N
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook"
     N8N_WEBHOOK_SECRET: str = "cpmis-n8n-secret-2024"
+
+    # Runtime workers. Disable on serverless deployments; use webhooks/cron.
+    BACKGROUND_WORKERS_ENABLED: bool = True
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    BOOTSTRAP_SECRET: str = ""
+    BOOTSTRAP_MAX_UPLOAD_MB: int = 20
+    DEMO_ADMIN_EMAIL: str = "admin@cpmis.example.com"
+    DEMO_ADMIN_PASSWORD: str = ""
+    DEMO_TELEGRAM_ID: str = ""
 
     class Config:
         env_file = ".env"
@@ -153,7 +174,11 @@ def production_config_errors(config=settings) -> List[str]:
             errors.append("ALLOWED_ORIGINS production tidak boleh wildcard, localhost, 127.0.0.1, atau HTTP")
             break
 
-    if config.MINIO_ACCESS_KEY == "minioadmin" or config.MINIO_SECRET_KEY == "minioadmin":
+    storage_type = getattr(config, "STORAGE_TYPE", "minio")
+    if storage_type == "vercel_blob":
+        if not getattr(config, "BLOB_READ_WRITE_TOKEN", ""):
+            errors.append("BLOB_READ_WRITE_TOKEN wajib diisi untuk Vercel Blob")
+    elif config.MINIO_ACCESS_KEY == "minioadmin" or config.MINIO_SECRET_KEY == "minioadmin":
         errors.append("Credential MinIO production tidak boleh memakai default minioadmin")
     if config.N8N_WEBHOOK_SECRET in {"cpmis-n8n-secret-2024", "CHANGE_ME_STRONG_N8N_SECRET", ""}:
         errors.append("N8N_WEBHOOK_SECRET production harus diganti dengan secret kuat")

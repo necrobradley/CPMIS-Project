@@ -7,7 +7,6 @@ import {
   Smartphone, UserCheck, Users,
 } from 'lucide-react'
 import { notificationsApi, systemApi, usersApi } from '@/lib/api'
-import { demoNotifications, demoUsers } from '@/lib/demo-data'
 import { Notification, User } from '@/types'
 import { ROLE_LABELS, timeAgo } from '@/lib/utils'
 
@@ -36,10 +35,10 @@ export default function TelegramPage() {
     retry: 1,
   })
 
-  const users = userData?.length ? userData : demoUsers
-  const notifications = notificationData?.length ? notificationData : demoNotifications
+  const users = userData ?? []
+  const notifications = notificationData ?? []
   const connected = users.filter((user) => user.telegram_id)
-  const telegramOnline = Boolean(systemData?.services?.telegram) || connected.length > 0
+  const telegramOnline = Boolean(systemData?.services?.telegram)
   const telegramEvents = useMemo(() => (
     notifications.filter((notification) => notification.sent_to_telegram).slice(0, 6)
   ), [notifications])
@@ -118,6 +117,11 @@ export default function TelegramPage() {
                 </div>
               </div>
             ))}
+            {!users.length && (
+              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">
+                Belum ada pengguna. Buat atau impor akun proyek terlebih dahulu.
+              </div>
+            )}
           </div>
         </div>
 

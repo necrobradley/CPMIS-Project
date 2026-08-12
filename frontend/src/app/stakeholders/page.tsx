@@ -6,9 +6,18 @@ import {
   Send, UserCheck, Users,
 } from 'lucide-react'
 import { projectsApi, usersApi } from '@/lib/api'
-import { demoProjects, demoStakeholders, demoUsers } from '@/lib/demo-data'
 import { Project, User } from '@/types'
 import { ROLE_LABELS } from '@/lib/utils'
+
+type StakeholderItem = {
+  name: string
+  type: string
+  project: string
+  contact: string
+  telegram: string
+  health: string
+  lastUpdate: string
+}
 
 export default function StakeholdersPage() {
   const [search, setSearch] = useState('')
@@ -24,10 +33,10 @@ export default function StakeholdersPage() {
     retry: 1,
   })
 
-  const projects = projectData?.length ? projectData : demoProjects
-  const users = userData?.length ? userData : demoUsers
+  const projects = projectData ?? []
+  const users = userData ?? []
   const stakeholders = useMemo(() => (
-    demoStakeholders.filter((stakeholder) => {
+    ([] as StakeholderItem[]).filter((stakeholder) => {
       const q = search.toLowerCase()
       return [stakeholder.name, stakeholder.type, stakeholder.project, stakeholder.contact]
         .some((value) => value.toLowerCase().includes(q))
@@ -122,6 +131,11 @@ export default function StakeholdersPage() {
                 </div>
               </div>
             ))}
+            {!stakeholders.length && (
+              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">
+                Belum ada data stakeholder eksternal.
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
+import { apiDetailMessage } from '@/lib/api-error'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -40,6 +41,11 @@ api.interceptors.response.use(
       } else {
         window.location.href = '/login'
       }
+    }
+    const responseData = err.response?.data
+    if (responseData && typeof responseData === 'object' && 'detail' in responseData) {
+      const normalizedDetail = apiDetailMessage(responseData.detail)
+      if (normalizedDetail) responseData.detail = normalizedDetail
     }
     return Promise.reject(err)
   }
@@ -104,7 +110,7 @@ export const reportsApi = {
   update: (id: number, data: Record<string, unknown>) => api.patch(`/reports/${id}`, data),
   uploadEvidence: (id: number, formData: FormData) =>
     api.post(`/reports/${id}/evidence`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  evidenceDownloadUrl: (id: number) => api.get(`/reports/evidence/${id}/download-url`),
+  downloadEvidence: (id: number) => api.get(`/reports/evidence/${id}/download`, { responseType: 'blob' }),
   deleteEvidence: (id: number) => api.delete(`/reports/evidence/${id}`),
   submit: (id: number) => api.post(`/reports/${id}/submit`),
   decide: (id: number, decision: string, note?: string) =>
@@ -163,8 +169,9 @@ export const usersApi = {
 
 // ── AI ────────────────────────────────────────
 export const aiApi = {
-  chat:            (message: string, project_id?: number) =>
-    api.post('/ai/chat', null, { params: { message, project_id } }),
+  models:          () => api.get('/ai/models'),
+  chat:            (message: string, project_id?: number, provider?: string, model?: string) =>
+    api.post('/ai/chat', null, { params: { message, project_id, provider, model } }),
   summarizeReport: (reportId: number) =>
     api.post(`/ai/summarize-report/${reportId}`),
   generateTasks:   (projectId: number, documentId: number) =>
@@ -183,7 +190,7 @@ export const documentsApi = {
     api.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   qa: (project_id: number, question: string) =>
     api.post('/documents/qa', { project_id, question }),
-  downloadUrl: (id: number) => api.get(`/documents/${id}/download-url`),
+  download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
   analysis: (id: number) => api.get(`/documents/${id}/analysis`),
   previewSync: (id: number, includeTasks = true, forceNew = false) =>
     api.post(`/documents/${id}/sync/preview`, { include_tasks: includeTasks, force_new: forceNew }),
@@ -265,4 +272,15 @@ export const researchApi = {
 // System readiness
 export const systemApi = {
   status: () => api.get('/system/status'),
+  bootstrapProjectDataset: (formData: FormData, bootstrapSecret: string) =>
+    api.post('/system/bootstrap/project-dataset', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-Bootstrap-Secret': bootstrapSecret,
+      },
+    }),
+  importProjectDataset: (formData: FormData) =>
+    api.post('/system/import/project-dataset', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 }

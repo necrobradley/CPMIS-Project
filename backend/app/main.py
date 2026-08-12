@@ -5,12 +5,10 @@ Digital Project Communication Management Information System
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.core.config import production_config_errors, settings
 from app.core.rate_limit import (
@@ -47,25 +45,33 @@ async def lifespan(app: FastAPI):
         message = "Production config tidak aman: " + "; ".join(production_errors)
         logger.error(message)
         raise RuntimeError(message)
-    create_tables()
-    bootstrap_project_memberships()
-    bootstrap_feature_flags()
-    logger.info("Database tables created/verified")
-
-    # Jalankan Telegram bot jika token tersedia
-    # Start background scheduler
-    from app.services.scheduler import run_scheduler
-    asyncio.create_task(run_scheduler())
-    logger.info("Background scheduler started")
-
-    if settings.TELEGRAM_BOT_ENABLED and settings.TELEGRAM_BOT_TOKEN:
-        from app.services.telegram_service import run_bot_polling
-        asyncio.create_task(run_bot_polling())
-        logger.info("Telegram bot started")
-    elif not settings.TELEGRAM_BOT_ENABLED:
-        logger.warning("Telegram bot disabled by TELEGRAM_BOT_ENABLED=False")
+    if settings.DATABASE_INIT_ON_STARTUP:
+        create_tables()
+        bootstrap_project_memberships()
+        bootstrap_feature_flags()
+        logger.info("Database tables created/verified")
     else:
-        logger.warning("WARNING: TELEGRAM_BOT_TOKEN tidak diset, bot tidak dijalankan")
+        logger.info("Database startup initialization skipped; schema is managed separately")
+
+    if settings.BACKGROUND_WORKERS_ENABLED:
+        from app.services.scheduler import run_scheduler
+
+        asyncio.create_task(run_scheduler())
+        logger.info("Background scheduler started")
+
+        if settings.TELEGRAM_BOT_ENABLED and settings.TELEGRAM_BOT_TOKEN:
+            from app.services.telegram_service import run_bot_polling
+
+            asyncio.create_task(run_bot_polling())
+            logger.info("Telegram bot polling started")
+        elif not settings.TELEGRAM_BOT_ENABLED:
+            logger.warning("Telegram bot disabled by TELEGRAM_BOT_ENABLED=False")
+        else:
+            logger.warning("WARNING: TELEGRAM_BOT_TOKEN tidak diset, bot tidak dijalankan")
+    else:
+        logger.info(
+            "Background workers disabled; gunakan Telegram webhook dan scheduler eksternal."
+        )
 
     yield
 
@@ -111,9 +117,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-Path("uploads/avatars").mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # -----------------------------------------------------------------------------
 # ROUTES

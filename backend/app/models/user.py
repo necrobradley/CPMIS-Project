@@ -113,6 +113,45 @@ class DocumentSyncStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class DigitalTwinNodeType(str, enum.Enum):
+    PROJECT = "project"
+    CONTRACT = "contract"
+    STAKEHOLDER = "stakeholder"
+    WBS = "wbs"
+    BOQ = "boq"
+    ACTIVITY = "activity"
+    MILESTONE = "milestone"
+    RESOURCE = "resource"
+    CREW = "crew"
+    LABOR = "labor"
+    EQUIPMENT = "equipment"
+    MATERIAL = "material"
+    SUPPLIER = "supplier"
+    PROCUREMENT = "procurement"
+    DOCUMENT = "document"
+    DRAWING = "drawing"
+    INSPECTION = "inspection"
+    RISK = "risk"
+    ISSUE = "issue"
+    REPORT = "report"
+    WEATHER = "weather"
+    CASH_FLOW = "cash_flow"
+    PAYMENT = "payment"
+    RULE = "rule"
+    HISTORICAL_PROJECT = "historical_project"
+
+
+class DigitalTwinRuleCategory(str, enum.Enum):
+    GENERAL = "general"
+    SCHEDULING = "scheduling"
+    RESOURCE = "resource"
+    PROCUREMENT = "procurement"
+    QUALITY = "quality"
+    HSE = "hse"
+    COST = "cost"
+    RISK = "risk"
+
+
 # ─────────────────────────────────────────────
 # USER MODEL
 # ─────────────────────────────────────────────
@@ -174,6 +213,21 @@ class Project(Base):
     vendor_profiles = relationship("VendorProfile", back_populates="project", cascade="all, delete-orphan")
     productivity_benchmarks = relationship(
         "ProductivityBenchmark", back_populates="project", cascade="all, delete-orphan"
+    )
+    digital_twin_nodes = relationship(
+        "DigitalTwinNode", back_populates="project", cascade="all, delete-orphan"
+    )
+    digital_twin_relationships = relationship(
+        "DigitalTwinRelationship", back_populates="project", cascade="all, delete-orphan"
+    )
+    digital_twin_rules = relationship(
+        "DigitalTwinRule", back_populates="project", cascade="all, delete-orphan"
+    )
+    digital_twin_reasoning_examples = relationship(
+        "DigitalTwinReasoningExample", back_populates="project", cascade="all, delete-orphan"
+    )
+    digital_twin_validation_issues = relationship(
+        "DigitalTwinValidationIssue", back_populates="project", cascade="all, delete-orphan"
     )
 
 
@@ -579,6 +633,7 @@ class TaskDependency(Base):
     depends_on_task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
     dependency_type = Column(String(30), default="finish_to_start", nullable=False)
     lag_days = Column(Integer, default=0, nullable=False)
+    reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     task = relationship("Task", foreign_keys=[task_id])
@@ -1135,3 +1190,174 @@ class AuditLog(Base):
 
     actor = relationship("User", foreign_keys=[actor_id])
     project = relationship("Project", foreign_keys=[project_id])
+
+
+# -----------------------------------------------------------------------------
+# DIGITAL TWIN DATASET
+# -----------------------------------------------------------------------------
+
+class DigitalTwinNode(Base):
+    __tablename__ = "digital_twin_nodes"
+    __table_args__ = (
+        UniqueConstraint("project_id", "uid", name="uq_digital_twin_node_project_uid"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    uid = Column(String(120), nullable=False, index=True)
+    node_type = Column(Enum(DigitalTwinNodeType), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(120), nullable=True, index=True)
+    description = Column(Text, nullable=True)
+    source_table = Column(String(120), nullable=True)
+    source_id = Column(String(120), nullable=True)
+    discipline = Column(String(120), nullable=True)
+    zone = Column(String(120), nullable=True)
+    floor = Column(String(80), nullable=True)
+    revision = Column(String(80), nullable=True)
+    status = Column(String(80), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="digital_twin_nodes")
+    outgoing_relationships = relationship(
+        "DigitalTwinRelationship",
+        foreign_keys="DigitalTwinRelationship.from_node_id",
+        back_populates="from_node",
+        cascade="all, delete-orphan",
+    )
+    incoming_relationships = relationship(
+        "DigitalTwinRelationship",
+        foreign_keys="DigitalTwinRelationship.to_node_id",
+        back_populates="to_node",
+        cascade="all, delete-orphan",
+    )
+    reasoning_examples = relationship(
+        "DigitalTwinReasoningExample",
+        back_populates="related_node",
+    )
+    validation_issues = relationship(
+        "DigitalTwinValidationIssue",
+        back_populates="node",
+    )
+
+
+class DigitalTwinRelationship(Base):
+    __tablename__ = "digital_twin_relationships"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "relationship_uid",
+            name="uq_digital_twin_relationship_project_uid",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    relationship_uid = Column(String(255), nullable=False, index=True)
+    from_node_id = Column(Integer, ForeignKey("digital_twin_nodes.id"), nullable=False, index=True)
+    to_node_id = Column(Integer, ForeignKey("digital_twin_nodes.id"), nullable=False, index=True)
+    relationship_type = Column(String(80), nullable=False, index=True)
+    relationship_name = Column(String(160), nullable=False)
+    reason = Column(Text, nullable=True)
+    rule_reference = Column(String(160), nullable=True)
+    confidence = Column(Float, default=1.0, nullable=False)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="digital_twin_relationships")
+    from_node = relationship(
+        "DigitalTwinNode",
+        foreign_keys=[from_node_id],
+        back_populates="outgoing_relationships",
+    )
+    to_node = relationship(
+        "DigitalTwinNode",
+        foreign_keys=[to_node_id],
+        back_populates="incoming_relationships",
+    )
+    validation_issues = relationship(
+        "DigitalTwinValidationIssue",
+        back_populates="relationship",
+    )
+
+
+class DigitalTwinRule(Base):
+    __tablename__ = "digital_twin_rules"
+    __table_args__ = (
+        UniqueConstraint("project_id", "rule_uid", name="uq_digital_twin_rule_project_uid"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
+    rule_uid = Column(String(120), nullable=False, index=True)
+    category = Column(
+        Enum(DigitalTwinRuleCategory),
+        default=DigitalTwinRuleCategory.GENERAL,
+        nullable=False,
+    )
+    title = Column(String(255), nullable=False)
+    condition_text = Column(Text, nullable=False)
+    action_text = Column(Text, nullable=False)
+    machine_condition_json = Column(Text, nullable=True)
+    reference = Column(String(255), nullable=True)
+    severity = Column(String(30), default="medium", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="digital_twin_rules")
+
+
+class DigitalTwinReasoningExample(Base):
+    __tablename__ = "digital_twin_reasoning_examples"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "example_uid",
+            name="uq_digital_twin_reasoning_project_uid",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    example_uid = Column(String(120), nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    context = Column(Text, nullable=False)
+    reasoning = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    reference = Column(String(255), nullable=True)
+    confidence = Column(Float, default=1.0, nullable=False)
+    related_node_id = Column(Integer, ForeignKey("digital_twin_nodes.id"), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project", back_populates="digital_twin_reasoning_examples")
+    related_node = relationship("DigitalTwinNode", back_populates="reasoning_examples")
+
+
+class DigitalTwinValidationIssue(Base):
+    __tablename__ = "digital_twin_validation_issues"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    node_id = Column(Integer, ForeignKey("digital_twin_nodes.id"), nullable=True, index=True)
+    relationship_id = Column(
+        Integer,
+        ForeignKey("digital_twin_relationships.id"),
+        nullable=True,
+        index=True,
+    )
+    code = Column(String(120), nullable=False, index=True)
+    severity = Column(String(30), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    is_resolved = Column(Boolean, default=False, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+
+    project = relationship("Project", back_populates="digital_twin_validation_issues")
+    node = relationship("DigitalTwinNode", back_populates="validation_issues")
+    relationship = relationship(
+        "DigitalTwinRelationship",
+        back_populates="validation_issues",
+    )
