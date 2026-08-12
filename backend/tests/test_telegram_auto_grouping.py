@@ -21,6 +21,7 @@ from app.services.telegram_auto_grouping import (
     merge_ai_report_fields,
     parse_report_fields,
 )
+from app.services.telegram_service import _get_active_report
 
 
 def build_database():
@@ -213,3 +214,21 @@ def test_create_report_draft_adds_progress_entry_from_telegram_quantity():
 
     assert report.progress_entry.quantity_this_report == 5
     assert report.progress_entry.cost_this_report == 0
+
+
+def test_active_report_falls_back_to_database_after_serverless_cold_start():
+    db, staff, _ = build_database()
+    result = auto_group_message(
+        db,
+        staff,
+        "Progress: pile cap zona A selesai pembesian. Pekerja: 6. REQ-BESI: ya",
+    )
+    report = create_report_draft(db, staff, result.task, result.fields, "cold-start")
+
+    class ContextWithoutMemory:
+        user_data = {}
+
+    recovered = _get_active_report(staff, ContextWithoutMemory(), db)
+
+    assert recovered.id == report.id
+    assert recovered.workflow.status.value == "draft"

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "2.6.0"
     DEBUG: bool = True
     SECRET_KEY: str = "change-this-in-production"
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
 
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/ai_cpmis_db"
@@ -65,6 +66,15 @@ class Settings(BaseSettings):
     LMSTUDIO_API_KEY: str = ""
     LMSTUDIO_BASE_URL: str = "http://localhost:1234/v1"
     LMSTUDIO_MODEL: str = "qwen3-8b"
+    # Generic serverless model endpoints (for example mlapi.run). One API key
+    # can serve multiple URL-per-model entries through MLAPI_MODELS_JSON.
+    MLAPI_API_KEY: str = ""
+    MLAPI_BASE_URL: str = ""
+    MLAPI_MODEL: str = "nemotron-3-ultra"
+    MLAPI_MODELS_JSON: str = ""
+    MLAPI_PAYLOAD_STYLE: str = "messages"  # messages|prompt|input
+    MLAPI_INCLUDE_MODEL: bool = False
+    MLAPI_EXTRA_PAYLOAD_JSON: str = ""
     RAG_ENABLED: bool = True
     RAG_CHUNK_SIZE: int = 1200
     RAG_CHUNK_OVERLAP: int = 180
@@ -121,6 +131,15 @@ class Settings(BaseSettings):
     # N8N
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook"
     N8N_WEBHOOK_SECRET: str = "cpmis-n8n-secret-2024"
+
+    # Runtime workers. Disable on serverless deployments; use webhooks/cron.
+    BACKGROUND_WORKERS_ENABLED: bool = True
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    BOOTSTRAP_SECRET: str = ""
+    BOOTSTRAP_MAX_UPLOAD_MB: int = 20
+    DEMO_ADMIN_EMAIL: str = "admin.mnbc@demo.local"
+    DEMO_ADMIN_PASSWORD: str = ""
+    DEMO_TELEGRAM_ID: str = ""
 
     class Config:
         env_file = ".env"

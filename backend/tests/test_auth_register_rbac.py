@@ -1,11 +1,14 @@
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.api.v1.endpoints.auth import register
-from app.db.database import Base
-from app.models.user import User
+from app.api.v1.endpoints.auth import register, router
+from app.core.security import get_password_hash
+from app.db.database import Base, get_db
+from app.models.user import User, UserRole
 
 
 def build_database():
@@ -35,3 +38,39 @@ async def test_public_register_rejects_director_role():
     assert exc.value.status_code == 403
     assert "admin aplikasi" in exc.value.detail
     assert db.query(User).filter(User.email == "director-candidate@example.com").first() is None
+
+
+def test_login_accepts_internal_demo_email_created_by_mnbc_setup():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(
+        User(
+            name="Administrator MNBC",
+            email="admin.mnbc@demo.local",
+            password_hash=get_password_hash("strong-password-123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+        )
+    )
+    db.commit()
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: db
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": "admin.mnbc@demo.local",
+                "password": "strong-password-123",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["token_type"] == "bearer"

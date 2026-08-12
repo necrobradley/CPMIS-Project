@@ -1,5 +1,6 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
+import { apiDetailMessage } from '@/lib/api-error'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -40,6 +41,11 @@ api.interceptors.response.use(
       } else {
         window.location.href = '/login'
       }
+    }
+    const responseData = err.response?.data
+    if (responseData && typeof responseData === 'object' && 'detail' in responseData) {
+      const normalizedDetail = apiDetailMessage(responseData.detail)
+      if (normalizedDetail) responseData.detail = normalizedDetail
     }
     return Promise.reject(err)
   }
@@ -163,8 +169,9 @@ export const usersApi = {
 
 // ── AI ────────────────────────────────────────
 export const aiApi = {
-  chat:            (message: string, project_id?: number) =>
-    api.post('/ai/chat', null, { params: { message, project_id } }),
+  models:          () => api.get('/ai/models'),
+  chat:            (message: string, project_id?: number, provider?: string, model?: string) =>
+    api.post('/ai/chat', null, { params: { message, project_id, provider, model } }),
   summarizeReport: (reportId: number) =>
     api.post(`/ai/summarize-report/${reportId}`),
   generateTasks:   (projectId: number, documentId: number) =>
@@ -265,4 +272,15 @@ export const researchApi = {
 // System readiness
 export const systemApi = {
   status: () => api.get('/system/status'),
+  bootstrapMnbc: (formData: FormData, bootstrapSecret: string) =>
+    api.post('/system/bootstrap/mnbc', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-Bootstrap-Secret': bootstrapSecret,
+      },
+    }),
+  importMnbc: (formData: FormData) =>
+    api.post('/system/import/mnbc', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 }

@@ -52,20 +52,25 @@ async def lifespan(app: FastAPI):
     bootstrap_feature_flags()
     logger.info("Database tables created/verified")
 
-    # Jalankan Telegram bot jika token tersedia
-    # Start background scheduler
-    from app.services.scheduler import run_scheduler
-    asyncio.create_task(run_scheduler())
-    logger.info("Background scheduler started")
+    if settings.BACKGROUND_WORKERS_ENABLED:
+        from app.services.scheduler import run_scheduler
 
-    if settings.TELEGRAM_BOT_ENABLED and settings.TELEGRAM_BOT_TOKEN:
-        from app.services.telegram_service import run_bot_polling
-        asyncio.create_task(run_bot_polling())
-        logger.info("Telegram bot started")
-    elif not settings.TELEGRAM_BOT_ENABLED:
-        logger.warning("Telegram bot disabled by TELEGRAM_BOT_ENABLED=False")
+        asyncio.create_task(run_scheduler())
+        logger.info("Background scheduler started")
+
+        if settings.TELEGRAM_BOT_ENABLED and settings.TELEGRAM_BOT_TOKEN:
+            from app.services.telegram_service import run_bot_polling
+
+            asyncio.create_task(run_bot_polling())
+            logger.info("Telegram bot polling started")
+        elif not settings.TELEGRAM_BOT_ENABLED:
+            logger.warning("Telegram bot disabled by TELEGRAM_BOT_ENABLED=False")
+        else:
+            logger.warning("WARNING: TELEGRAM_BOT_TOKEN tidak diset, bot tidak dijalankan")
     else:
-        logger.warning("WARNING: TELEGRAM_BOT_TOKEN tidak diset, bot tidak dijalankan")
+        logger.info(
+            "Background workers disabled; gunakan Telegram webhook dan scheduler eksternal."
+        )
 
     yield
 

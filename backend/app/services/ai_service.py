@@ -12,6 +12,7 @@ from openai import AsyncOpenAI
 from pypdf import PdfReader
 from app.core.config import settings
 from app.services import ai_provider_routing
+from app.services import mlapi_provider
 from app.services.secure_ai_gateway import secure_ai_gateway
 
 logger = logging.getLogger(__name__)
@@ -27,8 +28,17 @@ class AIService:
         return ai_provider_routing.route_provider(route)
 
     @classmethod
-    def _route_config(cls, route: str = "default") -> dict:
-        return ai_provider_routing.route_config(route)
+    def _route_config(
+        cls,
+        route: str = "default",
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        return ai_provider_routing.route_config(
+            route,
+            provider_override=provider,
+            model_override=model,
+        )
 
     @classmethod
     def is_configured(cls, route: str = "default") -> bool:
@@ -38,9 +48,16 @@ class AIService:
     def local_status(cls) -> dict:
         return ai_provider_routing.local_status()
 
-    async def _chat_completion(self, system_prompt: str, user_message: str, route: str = "default") -> str:
+    async def _chat_completion(
+        self,
+        system_prompt: str,
+        user_message: str,
+        route: str = "default",
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
         """Helper: panggil chat completion dari provider OpenAI-compatible."""
-        config = self._route_config(route)
+        config = self._route_config(route, provider=provider, model=model)
         if not config["api_key"]:
             raise ValueError(
                 f"API key AI belum dikonfigurasi untuk provider {config['provider']} "
@@ -60,6 +77,22 @@ class AIService:
             decision.original_chars,
             decision.outbound_chars,
         )
+        if config.get("driver") == "mlapi":
+            result = await mlapi_provider.chat_completion(
+                url=config["base_url"],
+                api_key=config["api_key"],
+                model=config.get("request_model") or config["model"],
+                system_prompt=decision.system_prompt,
+                user_message=decision.user_message,
+                temperature=settings.AI_TEMPERATURE,
+                max_tokens=config["max_tokens"],
+                timeout_seconds=settings.AI_TIMEOUT_SECONDS,
+                payload_style=config.get("payload_style") or "messages",
+                include_model=bool(config.get("include_model")),
+                extra_payload_json=config.get("extra_payload_json") or "",
+            )
+            return secure_ai_gateway.restore(result, decision)
+
         client_kwargs = {
             "api_key": config["api_key"],
             "timeout": settings.AI_TIMEOUT_SECONDS,
@@ -265,14 +298,25 @@ Kembalikan JSON:
     # FREE CHAT
     # -----------------------------------------------------------------------------
 
-    async def chat(self, message: str, context: str = "") -> str:
+    async def chat(
+        self,
+        message: str,
+        context: str = "",
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
         """Chat bebas dengan AI tentang proyek konstruksi."""
         system_prompt = f"""Kamu adalah asisten AI untuk manajemen proyek konstruksi di Indonesia.
 Kamu membantu project manager, supervisor, dan staf lapangan.
 Gunakan bahasa Indonesia yang profesional namun mudah dipahami.
 {f"Konteks proyek saat ini: {context}" if context else ""}
 """
-        return await self._chat_completion(system_prompt, message)
+        return await self._chat_completion(
+            system_prompt,
+            message,
+            provider=provider,
+            model=model,
+        )
 
     # -----------------------------------------------------------------------------
     # TELEGRAM MESSAGE PARSING

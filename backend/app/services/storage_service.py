@@ -33,19 +33,23 @@ class StorageService:
             secure=public_secure,
         )
         self.bucket = settings.MINIO_BUCKET_NAME
-        self._ensure_bucket()
+        self._bucket_ready = False
 
     def _ensure_bucket(self):
+        if self._bucket_ready:
+            return
         try:
             if not self.client.bucket_exists(self.bucket):
                 self.client.make_bucket(self.bucket)
                 logger.info(f"Bucket '{self.bucket}' created.")
+            self._bucket_ready = True
         except Exception as e:
             logger.warning(f"MinIO bucket check failed: {e}")
 
     def upload_file(self, file_data: bytes, object_name: str, content_type: str = "application/octet-stream") -> str:
         """Upload file ke MinIO, kembalikan path object."""
         try:
+            self._ensure_bucket()
             self.client.put_object(
                 self.bucket, object_name,
                 io.BytesIO(file_data), length=len(file_data),

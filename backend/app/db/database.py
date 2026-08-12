@@ -3,13 +3,15 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-# PostgreSQL engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,       # cek koneksi sebelum digunakan
-    pool_size=10,             # jumlah koneksi di pool
-    max_overflow=20,          # koneksi tambahan saat pool penuh
-)
+# PostgreSQL untuk production; SQLite juga didukung untuk demo lokal tanpa
+# layanan database tambahan.
+engine_options = {"pool_pre_ping": True}
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+else:
+    engine_options.update({"pool_size": 10, "max_overflow": 20})
+
+engine = create_engine(settings.DATABASE_URL, **engine_options)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -48,6 +50,11 @@ def _ensure_lightweight_columns():
         if inspector.has_table("task_controls")
         else set()
     )
+    dependency_columns = (
+        {column["name"] for column in inspector.get_columns("task_dependencies")}
+        if inspector.has_table("task_dependencies")
+        else set()
+    )
     with engine.begin() as connection:
         if "avatar_url" not in user_columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)"))
@@ -73,6 +80,8 @@ def _ensure_lightweight_columns():
             connection.execute(text("ALTER TABLE task_controls ADD COLUMN internal_overhead_cost FLOAT NOT NULL DEFAULT 0"))
         if "internal_risk_cost" not in control_columns:
             connection.execute(text("ALTER TABLE task_controls ADD COLUMN internal_risk_cost FLOAT NOT NULL DEFAULT 0"))
+        if "reason" not in dependency_columns:
+            connection.execute(text("ALTER TABLE task_dependencies ADD COLUMN reason TEXT"))
 
 
 def bootstrap_project_memberships():

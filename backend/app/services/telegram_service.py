@@ -396,12 +396,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def _get_active_report(user: User, context: ContextTypes.DEFAULT_TYPE, db: Session):
     report_id = context.user_data.get("active_report_id")
-    if not report_id:
-        return None
-    return db.query(DailyReport).filter(
-        DailyReport.id == int(report_id),
+    active_statuses = (ReportStatus.DRAFT, ReportStatus.NEEDS_REVISION)
+    query = db.query(DailyReport).join(DailyReportWorkflow).filter(
         DailyReport.user_id == user.id,
-    ).first()
+        DailyReportWorkflow.status.in_(active_statuses),
+    )
+    if report_id:
+        report = query.filter(DailyReport.id == int(report_id)).first()
+        if report:
+            return report
+
+    # Vercel dapat memproses update berikutnya pada instance lain sehingga
+    # context.user_data tidak selalu tersedia. Database menjadi sumber status
+    # draft yang persisten untuk foto, dokumen, dan perintah /submit.
+    return query.order_by(DailyReport.created_at.desc(), DailyReport.id.desc()).first()
 
 
 async def handle_structured_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
