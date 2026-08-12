@@ -1,7 +1,36 @@
 [project]
 name = "digicom-cpmis-backend"
 version = "2.6.0"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.29.0",
+    "sqlalchemy==2.0.52",
+    "alembic==1.19.1",
+    "psycopg2-binary==2.9.12",
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.0.1",
+    "python-multipart==0.0.9",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "email-validator==2.1.1",
+    "httpx==0.27.0",
+    "python-telegram-bot==22.8",
+    "openai==1.30.1",
+    "python-magic==0.4.27",
+    "pillow==12.3.0",
+    "pypdf==4.2.0",
+    "python-dotenv==1.0.1",
+    "boto3==1.34.110",
+    "motor==3.7.1",
+    "pymongo==4.17.0",
+    "minio==7.2.7",
+    "vercel>=0.5,<1",
+]
 
-[tool.vercel]
-entrypoint = "app.main:app"
+[dependency-groups]
+dev = [
+    "pytest==8.4.2",
+    "pytest-asyncio==1.4.0",
+]

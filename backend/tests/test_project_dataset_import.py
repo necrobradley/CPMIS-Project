@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.security import get_current_user, get_password_hash, verify_password
 from app.db.database import Base, get_db
 from app.models.user import AuditLog, User, UserRole
-from app.services import mnbc_dataset
+from app.services import project_dataset
 
 
 def build_app(role: UserRole):
@@ -21,8 +21,8 @@ def build_app(role: UserRole):
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     user = User(
-        name="Admin Import MNBC",
-        email=f"{role.value}@mnbc.test",
+        name="Admin Import Project",
+        email=f"{role.value}@project.test",
         password_hash=get_password_hash("password123"),
         role=role,
     )
@@ -41,7 +41,7 @@ def build_app(role: UserRole):
     return app, db, user
 
 
-def test_admin_imports_mnbc_from_website(monkeypatch):
+def test_admin_imports_project_from_website(monkeypatch):
     app, db, admin = build_app(UserRole.ADMIN)
     captured = {}
 
@@ -51,11 +51,11 @@ def test_admin_imports_mnbc_from_website(monkeypatch):
         assert content == b"repacked-zip"
         return {
             "project_id": 7,
-            "project_name": "Pembangunan Menara Nusantara Business Center (MNBC Tower)",
-            "project_code": "MNBC-2025",
+            "project_name": "Pembangunan Gedung Percontohan",
+            "project_code": "PGP-2026",
             "admin_email": admin.email,
             "admin_created": False,
-            "field_user_email": "staff.mnbc@demo.local",
+            "field_user_email": "staff.project@demo.local",
             "telegram_linked": True,
             "tasks_upserted": 400,
             "nodes_upserted": 1468,
@@ -64,11 +64,11 @@ def test_admin_imports_mnbc_from_website(monkeypatch):
             "reasoning_examples_upserted": 960,
         }
 
-    monkeypatch.setattr(mnbc_dataset, "import_mnbc_demo", fake_import)
+    monkeypatch.setattr(project_dataset, "import_project_dataset", fake_import)
     with TestClient(app) as client:
         response = client.post(
-            "/system/import/mnbc",
-            files={"dataset": ("mnbc-import.zip", b"repacked-zip", "application/zip")},
+            "/system/import/project-dataset",
+            files={"dataset": ("project-import.zip", b"repacked-zip", "application/zip")},
             data={"telegram_id": "770910605"},
         )
 
@@ -79,17 +79,17 @@ def test_admin_imports_mnbc_from_website(monkeypatch):
         "admin_password": "",
         "telegram_id": "770910605",
     }
-    audit = db.query(AuditLog).filter(AuditLog.action == "system.mnbc_dataset_imported").one()
+    audit = db.query(AuditLog).filter(AuditLog.action == "system.project_dataset_imported").one()
     assert audit.actor_id == admin.id
     assert audit.project_id == 7
 
 
-def test_non_admin_cannot_import_mnbc_from_website():
+def test_non_admin_cannot_import_project_from_website():
     app, _, _ = build_app(UserRole.MANAGER)
     with TestClient(app) as client:
         response = client.post(
-            "/system/import/mnbc",
-            files={"dataset": ("mnbc-import.zip", b"zip", "application/zip")},
+            "/system/import/project-dataset",
+            files={"dataset": ("project-import.zip", b"zip", "application/zip")},
         )
 
     assert response.status_code == 403
@@ -99,7 +99,7 @@ def test_admin_import_rejects_non_zip_file():
     app, _, _ = build_app(UserRole.ADMIN)
     with TestClient(app) as client:
         response = client.post(
-            "/system/import/mnbc",
+            "/system/import/project-dataset",
             files={"dataset": ("dataset.json", b"{}", "application/json")},
         )
 
@@ -107,7 +107,7 @@ def test_admin_import_rejects_non_zip_file():
     assert "ZIP" in response.json()["detail"]
 
 
-def test_setup_page_bootstraps_mnbc_with_secret(monkeypatch):
+def test_setup_page_bootstraps_project_with_secret(monkeypatch):
     app, _, _ = build_app(UserRole.ADMIN)
     monkeypatch.setattr(settings, "BOOTSTRAP_SECRET", "setup-secret")
     captured = {}
@@ -115,14 +115,14 @@ def test_setup_page_bootstraps_mnbc_with_secret(monkeypatch):
     def fake_import(_, content, **kwargs):
         captured.update(kwargs)
         assert content == b"compact-zip"
-        return {"project_id": 1, "project_name": "MNBC Tower", "tasks_upserted": 400}
+        return {"project_id": 1, "project_name": "Gedung Percontohan", "tasks_upserted": 400}
 
-    monkeypatch.setattr(mnbc_dataset, "import_mnbc_demo", fake_import)
+    monkeypatch.setattr(project_dataset, "import_project_dataset", fake_import)
     with TestClient(app) as client:
         response = client.post(
-            "/system/bootstrap/mnbc",
+            "/system/bootstrap/project-dataset",
             headers={"X-Bootstrap-Secret": "setup-secret"},
-            files={"dataset": ("mnbc-import.zip", b"compact-zip", "application/zip")},
+            files={"dataset": ("project-import.zip", b"compact-zip", "application/zip")},
             data={
                 "admin_email": "admin@example.com",
                 "admin_password": "strong-password-123",
@@ -143,9 +143,9 @@ def test_setup_page_rejects_wrong_bootstrap_secret(monkeypatch):
     monkeypatch.setattr(settings, "BOOTSTRAP_SECRET", "setup-secret")
     with TestClient(app) as client:
         response = client.post(
-            "/system/bootstrap/mnbc",
+            "/system/bootstrap/project-dataset",
             headers={"X-Bootstrap-Secret": "wrong-secret"},
-            files={"dataset": ("mnbc-import.zip", b"compact-zip", "application/zip")},
+            files={"dataset": ("project-import.zip", b"compact-zip", "application/zip")},
             data={"admin_password": "strong-password-123"},
         )
 
@@ -156,9 +156,9 @@ def test_setup_replaces_password_for_an_existing_admin_account():
     app, db, admin = build_app(UserRole.ADMIN)
     del app
 
-    mnbc_dataset._upsert_core_project(
+    project_dataset._upsert_core_project(
         db,
-        {"project_summary": {"project_name": "MNBC Password Repair"}},
+        {"project_summary": {"project_name": "Project Password Repair"}},
         admin_email=admin.email,
         admin_password="new-strong-password-123",
         telegram_id=None,

@@ -19,7 +19,7 @@ from app.models.user import (
 
 class LoginRequest(BaseModel):
     # Login is also used by built-in demo accounts such as
-    # admin.mnbc@demo.local. EmailStr intentionally rejects the reserved
+    # admin.project@demo.local. EmailStr intentionally rejects the reserved
     # .local suffix even though it is a valid internal account identifier.
     email: str = Field(min_length=3, max_length=100)
     password: str = Field(min_length=1)

@@ -1,12 +1,12 @@
-const REQUIRED_MNBC_FILES = [
+const REQUIRED_PROJECT_FILES = [
   '30_AI_Training_Dataset_Master.json',
   '30_AI_Knowledge_Graph.json',
   '30_AI_Instruction_Dataset.jsonl',
 ] as const
 
-export async function prepareMnbcImportArchive(source: File): Promise<File> {
+export async function prepareProjectDatasetArchive(source: File): Promise<File> {
   if (!source.name.toLowerCase().endsWith('.zip')) {
-    throw new Error('Dataset MNBC harus berupa file ZIP.')
+    throw new Error('Paket data proyek harus berupa file ZIP.')
   }
 
   const { default: JSZip } = await import('jszip')
@@ -18,10 +18,10 @@ export async function prepareMnbcImportArchive(source: File): Promise<File> {
   }
 
   const outputZip = new JSZip()
-  for (const filename of REQUIRED_MNBC_FILES) {
+  for (const filename of REQUIRED_PROJECT_FILES) {
     const entry = inputZip.file(filename)
     if (!entry) {
-      throw new Error(`Dataset MNBC tidak lengkap: ${filename} tidak ditemukan.`)
+      throw new Error(`Paket data proyek tidak lengkap: ${filename} tidak ditemukan.`)
     }
     outputZip.file(filename, await entry.async('uint8array'))
   }
@@ -31,7 +31,7 @@ export async function prepareMnbcImportArchive(source: File): Promise<File> {
     compression: 'DEFLATE',
     compressionOptions: { level: 6 },
   })
-  return new File([blob], 'mnbc-import.zip', {
+  return new File([blob], 'project-dataset-import.zip', {
     type: 'application/zip',
     lastModified: Date.now(),
   })
