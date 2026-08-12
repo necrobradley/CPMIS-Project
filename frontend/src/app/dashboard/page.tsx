@@ -17,9 +17,6 @@ import {
 import { useAuthStore } from '@/lib/store'
 import { formatDate, formatNumber, isOverdue, STATUS_LABELS, timeAgo } from '@/lib/utils'
 import { Approval, AuditLog, CommunicationItem, DailyReport, Notification, Project, Task, User } from '@/types'
-import {
-  demoApprovals, demoAuditLogs, demoCommunications, demoNotifications, demoProjects, demoReports, demoStakeholders, demoTasks, demoUsers,
-} from '@/lib/demo-data'
 
 type SystemStatus = {
   services?: Record<string, boolean>
@@ -64,19 +61,18 @@ export default function DashboardPage() {
   const systemQuery = useLiveQuery<SystemStatus>('system-status', async () => (await systemApi.status()).data)
   const myWorkQuery = useLiveQuery<MyWorkSummary>('my-work', async () => (await controlsApi.myWork()).data)
 
-  const projects = projectsQuery.data?.length ? projectsQuery.data : demoProjects
-  const tasks = tasksQuery.data?.length ? tasksQuery.data : demoTasks
-  const reports = reportsQuery.data?.length ? reportsQuery.data : demoReports
-  const users = usersQuery.data?.length ? usersQuery.data : demoUsers
-  const notifications = notificationsQuery.data?.length ? notificationsQuery.data : demoNotifications
-  const approvals = approvalsQuery.data?.length ? approvalsQuery.data : demoApprovals
-  const communications = communicationsQuery.data?.length ? communicationsQuery.data : demoCommunications
-  const auditLogs = auditQuery.data?.length ? auditQuery.data : demoAuditLogs
+  const projects = projectsQuery.data ?? []
+  const tasks = tasksQuery.data ?? []
+  const reports = reportsQuery.data ?? []
+  const users = usersQuery.data ?? []
+  const notifications = notificationsQuery.data ?? []
+  const approvals = approvalsQuery.data ?? []
+  const communications = communicationsQuery.data ?? []
+  const auditLogs = auditQuery.data ?? []
   const systemStatus = systemQuery.data
   const myWork = myWorkQuery.data
 
-  const usingDemoData = [projectsQuery, tasksQuery, reportsQuery].some((q) => q.isError) ||
-    (!projectsQuery.data?.length && !tasksQuery.data?.length && !reportsQuery.data?.length)
+  const hasDataError = [projectsQuery, tasksQuery, reportsQuery].some((q) => q.isError)
 
   const activeProjects = projects.filter((p) => p.status === 'active').length
   const doneTasks = tasks.filter((t) => t.status === 'done').length
@@ -86,7 +82,9 @@ export default function DashboardPage() {
   const aiReports = reports.filter((r) => r.ai_summary || r.ai_risks)
   const telegramUsers = users.filter((u) => Boolean(u.telegram_id)).length
   const avgProgress = Math.round(projects.reduce((sum, p) => sum + p.progress_percent, 0) / Math.max(projects.length, 1))
-  const healthScore = Math.max(12, Math.min(98, avgProgress + doneTasks * 3 - overdueTasks.length * 9 - blockedTasks * 7))
+  const healthScore = projects.length || tasks.length
+    ? Math.max(0, Math.min(98, avgProgress + doneTasks * 3 - overdueTasks.length * 9 - blockedTasks * 7))
+    : 0
   const unreadNotifications = notifications.filter((n) => !n.is_read).length
   const pendingApprovals = approvals.filter((a) => a.status === 'pending').length
   const openCommunications = communications.filter((item) => ['open', 'in_review'].includes(item.status))
@@ -209,8 +207,8 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {usingDemoData && (
-            <span className="badge-warning">Demo fallback aktif</span>
+          {hasDataError && (
+            <span className="badge-warning">Sebagian data API gagal dimuat</span>
           )}
           <span className="badge-success">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -427,21 +425,22 @@ export default function DashboardPage() {
             <Link href="/stakeholders" className="text-xs font-medium text-brand-600 hover:text-brand-700">Kelola</Link>
           </div>
           <div className="space-y-3">
-            {demoStakeholders.map((stakeholder) => (
-              <div key={stakeholder.name} className="flex items-start gap-3 rounded-xl border border-slate-100 p-3">
+            {users.slice(0, 4).map((stakeholder) => (
+              <div key={stakeholder.id} className="flex items-start gap-3 rounded-xl border border-slate-100 p-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
                   <Users size={17} className="text-slate-500" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate text-sm font-semibold text-slate-800">{stakeholder.name}</p>
-                    <span className={stakeholder.health === 'Aktif' ? 'badge-success' : 'badge-warning'}>{stakeholder.health}</span>
+                    <span className={stakeholder.is_active ? 'badge-success' : 'badge-warning'}>{stakeholder.is_active ? 'Aktif' : 'Nonaktif'}</span>
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-400">{stakeholder.type} - {stakeholder.project}</p>
-                  <p className="mt-1 line-clamp-1 text-xs text-slate-500">{stakeholder.lastUpdate}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{stakeholder.role} - {stakeholder.email}</p>
+                  <p className="mt-1 line-clamp-1 text-xs text-slate-500">{stakeholder.telegram_id ? 'Telegram terhubung' : 'Telegram belum terhubung'}</p>
                 </div>
               </div>
             ))}
+            {!users.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">Belum ada pengguna/stakeholder.</p>}
           </div>
         </div>
       </div>

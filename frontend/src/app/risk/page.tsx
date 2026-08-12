@@ -6,7 +6,6 @@ import {
   ClipboardCheck, ShieldAlert, ShieldCheck, Siren,
 } from 'lucide-react'
 import { projectsApi, reportsApi, tasksApi } from '@/lib/api'
-import { demoProjects, demoReports, demoTasks } from '@/lib/demo-data'
 import { DailyReport, Project, Task } from '@/types'
 import { formatDate, isOverdue, PRIORITY_LABELS, priorityBadgeClass, STATUS_LABELS, statusBadgeClass, timeAgo } from '@/lib/utils'
 
@@ -44,9 +43,9 @@ export default function RiskPage() {
     refetchInterval: 15_000,
   })
 
-  const projects = projectData?.length ? projectData : demoProjects
-  const tasks = taskData?.length ? taskData : demoTasks
-  const reports = reportData?.length ? reportData : demoReports
+  const projects = projectData ?? []
+  const tasks = taskData ?? []
+  const reports = reportData ?? []
   const projectMap = Object.fromEntries(projects.map((project) => [project.id, project]))
 
   const scoredTasks = tasks

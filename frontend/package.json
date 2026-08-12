@@ -6,17 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:api-errors": "node --no-warnings --test tests/api-error-message.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",
     "@tanstack/react-query": "^5.40.0",
-    "axios": "^1.7.2",
+    "axios": "^1.19.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "js-cookie": "^3.0.5",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
-    "next": "^16.2.6",
+    "next": "^16.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.51.5",
@@ -31,11 +33,11 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.0.1",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.26"
   }
 }

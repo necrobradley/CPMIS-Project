@@ -3,13 +3,21 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { aiApi, projectsApi } from '@/lib/api'
 import { Project } from '@/types'
-import { Bot, Send, Loader2, User, Sparkles, X, RotateCcw } from 'lucide-react'
+import { Bot, Send, Loader2, User, Sparkles, RotateCcw } from 'lucide-react'
 
 interface Message {
   id:      number
   role:    'user' | 'assistant'
   content: string
   time:    Date
+}
+
+interface AIModelChoice {
+  id: string
+  provider: string
+  model: string
+  label: string
+  driver: string
 }
 
 const SUGGESTIONS = [
@@ -25,13 +33,20 @@ export default function AIChatPage() {
   const [input, setInput]           = useState('')
   const [loading, setLoading]       = useState(false)
   const [projectId, setProjectId]   = useState<number | undefined>()
+  const [modelId, setModelId]       = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
-  let msgId = useRef(0)
+  const msgId = useRef(0)
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: async () => (await projectsApi.list()).data,
   })
+  const { data: modelData } = useQuery<{models: AIModelChoice[]}>({
+    queryKey: ['ai-models'],
+    queryFn: async () => (await aiApi.models()).data,
+  })
+  const modelChoices = modelData?.models ?? []
+  const selectedModel = modelChoices.find((item) => item.id === modelId) ?? modelChoices[0]
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -47,16 +62,21 @@ export default function AIChatPage() {
     setLoading(true)
 
     try {
-      const { data } = await aiApi.chat(content, projectId)
+      const { data } = await aiApi.chat(
+        content,
+        projectId,
+        selectedModel?.provider,
+        selectedModel?.model,
+      )
       const aiMsg: Message = {
         id: ++msgId.current, role: 'assistant',
         content: data.response, time: new Date(),
       }
       setMessages((prev) => [...prev, aiMsg])
-    } catch {
+    } catch (error: any) {
       const errMsg: Message = {
         id: ++msgId.current, role: 'assistant',
-        content: '❌ Maaf, terjadi kesalahan. Pastikan API key OpenAI sudah dikonfigurasi.',
+        content: `Model belum dapat menjawab. ${error?.response?.data?.detail || 'Periksa API key dan endpoint model di backend.'}`,
         time: new Date(),
       }
       setMessages((prev) => [...prev, errMsg])
@@ -85,6 +105,17 @@ export default function AIChatPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <select
+            value={selectedModel?.id ?? ''}
+            onChange={(e) => setModelId(e.target.value)}
+            className="input w-56 text-sm"
+            disabled={!modelChoices.length}
+          >
+            {!modelChoices.length && <option value="">Model belum dikonfigurasi</option>}
+            {modelChoices.map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
           <select value={projectId ?? ''}
             onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : undefined)}
             className="input w-52 text-sm">
@@ -199,7 +230,8 @@ export default function AIChatPage() {
             </button>
           </div>
           <p className="text-[11px] text-slate-400 mt-2 text-center">
-            AI CPMIS menggunakan GPT-4o-mini. Respons mungkin tidak selalu akurat — verifikasi informasi penting.
+            {selectedModel ? `Model aktif: ${selectedModel.label}. ` : ''}
+            Respons AI perlu diverifikasi untuk keputusan proyek penting.
           </p>
         </div>
       </div>

@@ -2,7 +2,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { approvalsApi, documentsApi, projectsApi, usersApi } from '@/lib/api'
-import { demoApprovals, demoProjects, demoUsers } from '@/lib/demo-data'
 import { Approval, ApprovalStatus, DocumentSyncSession, Project, User } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { CheckCircle2, Clock3, FileCheck2, GitCompareArrows, Loader2, Plus, Send, XCircle } from 'lucide-react'
@@ -43,9 +42,9 @@ export default function ApprovalsPage() {
     queryFn: async () => (await usersApi.list()).data,
   })
 
-  const approvals = approvalData?.length ? approvalData : demoApprovals
-  const projects = projectData?.length ? projectData : demoProjects
-  const users = userData?.length ? userData : demoUsers
+  const approvals = approvalData ?? []
+  const projects = projectData ?? []
+  const users = userData ?? []
 
   const projectMap = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects])
   const userMap = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users])

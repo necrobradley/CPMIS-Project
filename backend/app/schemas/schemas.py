@@ -18,8 +18,22 @@ from app.models.user import (
 # ─────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+    # Login is also used by built-in demo accounts such as
+    # admin.mnbc@demo.local. EmailStr intentionally rejects the reserved
+    # .local suffix even though it is a valid internal account identifier.
+    email: str = Field(min_length=3, max_length=100)
+    password: str = Field(min_length=1)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_login_email(cls, value: str) -> str:
+        email = value.strip().lower()
+        if email.count("@") != 1 or any(character.isspace() for character in email):
+            raise ValueError("Format email tidak valid")
+        local_part, domain = email.split("@", 1)
+        if not local_part or not domain or "." not in domain:
+            raise ValueError("Format email tidak valid")
+        return email
 
 
 class TokenResponse(BaseModel):
