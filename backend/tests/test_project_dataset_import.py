@@ -125,7 +125,7 @@ def test_setup_page_bootstraps_project_with_secret(monkeypatch):
             files={"dataset": ("project-import.zip", b"compact-zip", "application/zip")},
             data={
                 "admin_email": "admin@example.com",
-                "admin_password": "strong-password-123",
+                "admin_password": "Strong-password-123",
                 "telegram_id": "770910605",
             },
         )
@@ -133,7 +133,7 @@ def test_setup_page_bootstraps_project_with_secret(monkeypatch):
     assert response.status_code == 200
     assert captured == {
         "admin_email": "admin@example.com",
-        "admin_password": "strong-password-123",
+        "admin_password": "Strong-password-123",
         "telegram_id": "770910605",
     }
 

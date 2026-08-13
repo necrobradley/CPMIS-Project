@@ -64,6 +64,14 @@ def test_project_access_is_not_global_for_manager():
     assert can_access_project(staff, project) is True
     assert can_access_project(project_manager, project) is True
     assert can_access_project(manager, project) is False
+    assert can_access_project(admin, project) is False
+
+    project.memberships.append(SimpleNamespace(
+        user_id=admin.id,
+        division_id=None,
+        project_role="project_admin",
+        is_active=True,
+    ))
     assert can_access_project(admin, project) is True
 
 

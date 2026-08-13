@@ -1,8 +1,8 @@
 """Import paket data proyek menjadi satu proyek CPMIS yang operasional.
 
-Importer menerima ZIP proyek, membuat akun lintas role, task/WBS yang dapat
-dipakai melalui web dan Telegram, serta graph Digital Twin dan contoh reasoning
-AI. Prosesnya idempotent per nama proyek.
+Importer menerima ZIP proyek, membuat task/WBS, graph Digital Twin, dan contoh
+reasoning AI. Akun pegawai sengaja dikelola terpisah melalui fitur Pengguna agar
+dataset proyek tidak pernah membuat atau menimpa kredensial.
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import hashlib
 import io
 import json
 import re
-import secrets
 import zipfile
 from datetime import datetime
 from typing import Any
@@ -44,10 +43,7 @@ from app.schemas.schemas import (
     DigitalTwinRuleCreate,
 )
 from app.services.digital_twin import import_dataset
-from app.services.project_staffing import (
-    seed_ai_role_coverage_tasks,
-    upsert_full_project_roster,
-)
+from app.services.feature_flags import bootstrap_project_feature_entitlements
 
 
 MASTER_FILE = "30_AI_Training_Dataset_Master.json"
@@ -65,6 +61,19 @@ NODE_TYPE_MAP = {
     "risk": DigitalTwinNodeType.RISK,
 }
 
+DATASET_DISCIPLINE_DIVISIONS = {
+    "persiapan": "Site Management",
+    "struktur bawah": "Site Execution",
+    "struktur atas": "Site Execution",
+    "arsitektur": "Architecture",
+    "elektrikal": "MEP",
+    "mekanikal": "MEP",
+    "transportasi vertikal": "MEP",
+    "eksternal": "Site Execution",
+    "commissioning": "QA/QC",
+    "handover": "Document Control",
+}
+
 
 def _parse_date(value: Any) -> datetime | None:
     if not value:
@@ -78,6 +87,80 @@ def _parse_date(value: Any) -> datetime | None:
 def _safe_uid(prefix: str, value: str) -> str:
     digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
     return f"{prefix}:{digest}"
+
+
+def _dataset_task_division_name(work_package: str | None) -> str | None:
+    raw_name = " ".join(str(work_package or "").strip().split())
+    normalized = raw_name.lower()
+    if not normalized:
+        return None
+    known_division = DATASET_DISCIPLINE_DIVISIONS.get(normalized)
+    if known_division:
+        return known_division
+
+    # Dataset proyek lain boleh membawa disiplin baru. Pertahankan nama
+    # disiplin sumber sebagai divisi proyek agar importer tidak pernah kembali
+    # menumpuk semua task ke satu divisi bawaan.
+    acronyms = {"bim", "hse", "hsse", "mep", "mepf", "qa", "qc"}
+    return " ".join(
+        word.upper() if word.lower() in acronyms else word.capitalize()
+        for word in raw_name.split()
+    )[:100]
+
+
+def sync_dataset_task_divisions(db: Session, project_id: int | None = None) -> dict:
+    """Backfill task lama yang masih berada di divisi importer bawaan.
+
+    Assignment divisi yang sudah diubah manual tidak disentuh. Dengan begitu
+    fungsi ini aman dijalankan berulang kali saat aplikasi mulai.
+    """
+    query = db.query(Task).join(TaskSpecification).filter(
+        Task.ai_source == "Dataset terstruktur hasil impor",
+    )
+    if project_id is not None:
+        query = query.filter(Task.project_id == project_id)
+    tasks = query.all()
+    if not tasks:
+        return {"tasks_updated": 0, "divisions_created": 0}
+
+    project_ids = {task.project_id for task in tasks}
+    projects = {
+        project.id: project
+        for project in db.query(Project).filter(Project.id.in_(project_ids)).all()
+    }
+    divisions = {
+        (division.project_id, division.division_name): division
+        for division in db.query(Division).filter(Division.project_id.in_(project_ids)).all()
+    }
+    divisions_by_id = {division.id: division for division in divisions.values()}
+    tasks_updated = 0
+    divisions_created = 0
+    for task in tasks:
+        current_division = divisions_by_id.get(task.division_id)
+        if current_division and current_division.division_name != "Project Controls & Digital Engineering":
+            continue
+        division_name = _dataset_task_division_name(task.specification.work_package)
+        if not division_name:
+            continue
+        key = (task.project_id, division_name)
+        division = divisions.get(key)
+        if not division:
+            project = projects[task.project_id]
+            division = Division(
+                project_id=task.project_id,
+                division_name=division_name,
+                description=f"Divisi operasional untuk paket pekerjaan {task.specification.work_package}.",
+                manager_id=project.owner_id,
+            )
+            db.add(division)
+            db.flush()
+            divisions[key] = division
+            divisions_by_id[division.id] = division
+            divisions_created += 1
+        if task.division_id != division.id:
+            task.division_id = division.id
+            tasks_updated += 1
+    return {"tasks_updated": tasks_updated, "divisions_created": divisions_created}
 
 
 def _project_slug(summary: dict) -> str:
@@ -150,11 +233,9 @@ def _upsert_core_project(
     admin_email: str,
     admin_password: str,
     telegram_id: str | None,
-    full_role_roster: bool = False,
 ) -> tuple[User, dict[str, User], dict[str, User], Project, Division, bool, list[dict]]:
     summary = master.get("project_summary") or {}
     project_name = summary.get("project_name") or "Proyek Impor"
-    project_slug = _project_slug(summary)
 
     owner = db.query(User).filter(User.email == admin_email).first()
     owner_created = owner is None
@@ -165,9 +246,14 @@ def _upsert_core_project(
             password_hash=get_password_hash(admin_password),
             role=UserRole.ADMIN,
             is_active=True,
+            email_verified_at=None,
+            email_verification_required=True,
+            must_set_password=False,
         )
         db.add(owner)
         db.flush()
+    elif owner.role != UserRole.ADMIN:
+        raise ValueError("Email setup sudah digunakan oleh akun yang bukan Admin Proyek")
     elif admin_password:
         # The bootstrap secret authorizes repairing an existing demo account.
         # Authenticated dataset re-imports pass an empty password and therefore
@@ -176,11 +262,41 @@ def _upsert_core_project(
         owner.role = UserRole.ADMIN
         owner.is_active = True
 
-    project = db.query(Project).filter(Project.project_name == project_name).first()
-    if not project:
-        project = Project(project_name=project_name, owner_id=owner.id)
-        db.add(project)
-        db.flush()
+    admin_memberships = db.query(ProjectMembership).filter(
+        ProjectMembership.user_id == owner.id,
+        ProjectMembership.project_role == "project_admin",
+        ProjectMembership.is_active == True,
+    ).all()
+    if len(admin_memberships) > 1:
+        raise ValueError("Akun Admin Proyek terhubung ke lebih dari satu proyek; hubungi Admin Owner")
+
+    if admin_memberships:
+        project = admin_memberships[0].project
+        if project.owner_id != owner.id:
+            raise ValueError("Kepemilikan proyek tidak sesuai dengan akun Admin Proyek")
+        if project.project_name != project_name:
+            has_imported_dataset = db.query(Task.id).filter(
+                Task.project_id == project.id,
+                Task.ai_source == "Dataset terstruktur hasil impor",
+            ).first() is not None
+            if has_imported_dataset:
+                raise ValueError(
+                    f"Proyek ini sudah berisi dataset {project.project_name}; "
+                    f"ZIP {project_name} tidak dapat menggantikannya"
+                )
+            # Setup Admin membuat wadah proyek kosong terlebih dahulu. Import
+            # dataset pertama mengadopsi identitas proyek dari ZIP pada wadah
+            # tersebut, bukan mencoba membuat proyek kedua.
+            project.project_name = project_name
+    else:
+        project = db.query(Project).filter(
+            Project.owner_id == owner.id,
+            Project.project_name == project_name,
+        ).first()
+        if not project:
+            project = Project(project_name=project_name, owner_id=owner.id)
+            db.add(project)
+            db.flush()
     project.description = (
         "Paket data proyek untuk AI CPMIS, Digital Twin, pengendalian proyek, "
         "dan pelaporan terintegrasi web/Telegram."
@@ -208,68 +324,16 @@ def _upsert_core_project(
     division.manager_id = owner.id
     db.flush()
 
-    if full_role_roster:
-        role_users, project_role_users, generated_accounts = upsert_full_project_roster(
-            db,
-            project=project,
-            project_slug=project_slug,
-            owner=owner,
-            initial_password=admin_password,
-        )
-    else:
-        account_specs = (
-            ("director", "Direktur Proyek", UserRole.DIRECTOR, "project_manager"),
-            ("manager", "Manajer Proyek", UserRole.MANAGER, "project_manager"),
-            ("staff", "Staf Lapangan", UserRole.STAFF, "site_engineer"),
-            ("subcontractor", "Staf Subkontraktor", UserRole.SUBCONTRACTOR, "subcontractor"),
-        )
-        role_users = {}
-        project_role_users = {}
-        generated_accounts = []
-        for key, label, global_role, project_role in account_specs:
-            email = f"{key}.{project_slug}@cpmis.example.com"
-            user = db.query(User).filter(User.email == email).first()
-            created = user is None
-            temporary_password = None
-            if not user:
-                temporary_password = admin_password or secrets.token_urlsafe(12)
-                user = User(
-                    name=f"{label} - {project_name}"[:100],
-                    email=email,
-                    password_hash=get_password_hash(temporary_password),
-                    role=global_role,
-                    is_active=True,
-                )
-                db.add(user)
-                db.flush()
-            elif admin_password:
-                user.password_hash = get_password_hash(admin_password)
-            user.role = global_role
-            user.is_active = True
-            user.division_id = division.id
-            _upsert_membership(db, project, user, division, project_role)
-            role_users[key] = user
-            project_role_users[project_role] = user
-            generated_accounts.append({
-                "name": user.name,
-                "email": user.email,
-                "role": global_role.value,
-                "project_role": project_role,
-                "created": created,
-                "temporary_password": temporary_password,
-            })
+    # Dataset proyek tidak memiliki otoritas untuk membuat akun. Parameter
+    # telegram_id dipertahankan sementara demi kompatibilitas API lama, tetapi
+    # tidak ditempelkan ke akun mana pun.
+    del telegram_id
+    role_users: dict[str, User] = {}
+    project_role_users: dict[str, User] = {}
+    generated_accounts: list[dict] = []
 
-    field_user = role_users["staff"]
-    if telegram_id:
-        duplicate = db.query(User).filter(
-            User.telegram_id == telegram_id,
-            User.id != field_user.id,
-        ).first()
-        if duplicate:
-            raise ValueError("Telegram ID sudah dipakai oleh user lain")
-        field_user.telegram_id = telegram_id
-
-    _upsert_membership(db, project, owner, division, "project_manager")
+    _upsert_membership(db, project, owner, division, "project_admin")
+    bootstrap_project_feature_entitlements(db, project, owner.id)
     db.flush()
     return owner, role_users, project_role_users, project, division, owner_created, generated_accounts
 
@@ -290,8 +354,12 @@ def _upsert_tasks(
     }
     by_activity: dict[str, Task] = {}
     assignment_counts = {key: 0 for key in role_users}
+    project_divisions = {
+        item.division_name: item
+        for item in db.query(Division).filter(Division.project_id == project.id).all()
+    }
 
-    for index, chain in enumerate(master.get("linked_chains") or []):
+    for chain in master.get("linked_chains") or []:
         wbs = chain.get("wbs") or {}
         boq = chain.get("boq") or {}
         activity = chain.get("activity") or {}
@@ -322,22 +390,21 @@ def _upsert_tasks(
             f"WBS {wbs_code}. BOQ {boq.get('boq_id')}: {boq.get('description')}. "
             f"Risiko terkait: {risk.get('risk_event') or 'lihat risk register'}."
         )
-        task.division_id = division.id
-        searchable = " ".join(str(value or "") for value in (
-            activity.get("name"),
-            boq.get("description"),
-            risk.get("risk_event"),
-            material.get("description"),
-            equipment.get("jenis"),
-        )).lower()
-        if str(activity.get("is_critical")).upper() == "YES":
-            assignee_key = "manager" if index % 3 else "director"
-        elif any(word in searchable for word in ("subkon", "vendor", "supply", "instal", "erection")):
-            assignee_key = "subcontractor"
-        else:
-            assignee_key = "subcontractor" if index % 5 == 0 else "staff"
-        task.assigned_to = role_users[assignee_key].id
-        assignment_counts[assignee_key] += 1
+        division_name = _dataset_task_division_name(wbs.get("wbs_name"))
+        task_division = project_divisions.get(division_name) if division_name else division
+        if division_name and not task_division:
+            task_division = Division(
+                project_id=project.id,
+                division_name=division_name,
+                description=f"Divisi operasional untuk paket pekerjaan {wbs.get('wbs_name')}.",
+                manager_id=project.owner_id,
+            )
+            db.add(task_division)
+            db.flush()
+            project_divisions[division_name] = task_division
+        task.division_id = task_division.id
+        # Task baru tetap tanpa PIC. Pada import ulang, assignment manual yang
+        # sudah dibuat Admin Proyek tidak boleh ditimpa oleh dataset.
         task.created_by = owner.id
         task.status = _task_status(activity)
         task.priority = (
@@ -348,8 +415,8 @@ def _upsert_tasks(
         task.deadline = _parse_date(activity.get("early_finish"))
         task.progress_percent = float(activity.get("progress_pct") or 0)
         task.approval_status = ApprovalStatus.APPROVED.value
-        task.ai_generated = True
-        task.ai_source = "Paket data proyek terhubung"
+        task.ai_generated = False
+        task.ai_source = "Dataset terstruktur hasil impor"
 
         specification = task.specification
         specification.wbs_code = wbs_code
@@ -618,19 +685,10 @@ def import_project_dataset(
         admin_email=admin_email.strip().lower(),
         admin_password=admin_password,
         telegram_id=(telegram_id or "").strip() or None,
-        full_role_roster=bool(demo_features.get("seed_all_project_roles")),
     )
     task_map, assignment_counts = _upsert_tasks(db, master, owner, role_users, project, division)
     ai_role_task_count = 0
     role_assignment_counts: dict[str, int] = {}
-    if demo_features.get("seed_all_project_roles"):
-        ai_role_task_count, role_assignment_counts = seed_ai_role_coverage_tasks(
-            db,
-            project=project,
-            owner=owner,
-            users_by_project_role=project_role_users,
-            data_date=_parse_date(demo_features.get("data_date")),
-        )
     db.commit()
 
     payload = _build_digital_twin_payload(master, graph, examples)
@@ -643,7 +701,12 @@ def import_project_dataset(
             db,
             project_id=project.id,
             owner=owner,
-            role_users=role_users,
+            role_users={
+                "director": owner,
+                "manager": owner,
+                "staff": owner,
+                "subcontractor": owner,
+            },
             tasks_by_activity=task_map,
             manifest=demo_features,
         )
@@ -653,8 +716,8 @@ def import_project_dataset(
         "project_code": (master.get("project_summary") or {}).get("project_code"),
         "admin_email": owner.email,
         "admin_created": owner_created,
-        "field_user_email": role_users["staff"].email,
-        "telegram_linked": bool(role_users["staff"].telegram_id),
+        "field_user_email": None,
+        "telegram_linked": False,
         "generated_accounts": generated_accounts,
         "assignment_counts": assignment_counts,
         "role_assignment_counts": role_assignment_counts,

@@ -111,6 +111,70 @@ class AIService:
         )
         return secure_ai_gateway.restore(response.choices[0].message.content, decision)
 
+    async def map_employee_positions(
+        self,
+        employees: list[dict],
+        available_roles: list[dict],
+    ) -> list[dict]:
+        """Petakan nama posisi non-sensitif ke role proyek dari katalog resmi."""
+        role_catalog = [
+            {
+                "code": role.get("code"),
+                "label": role.get("label"),
+                "default_division": role.get("default_division"),
+                "responsibility": role.get("responsibility"),
+            }
+            for role in available_roles
+            if role.get("code") and role.get("code") != "project_admin"
+        ]
+        if not role_catalog:
+            raise ValueError("Katalog role proyek aktif belum tersedia")
+
+        system_prompt = """Kamu adalah AI workforce planner proyek Indonesia.
+Petakan setiap nama posisi pegawai ke tepat satu role dari katalog yang diberikan.
+Jangan membuat kode role baru. Jawab hanya JSON array valid tanpa markdown.
+Nama dan email pegawai sengaja tidak dikirim untuk menjaga privasi."""
+        results: list[dict] = []
+        for start in range(0, len(employees), 25):
+            batch = employees[start:start + 25]
+            user_message = f"""
+Katalog role yang diizinkan:
+{json.dumps(role_catalog, ensure_ascii=False)}
+
+Posisi yang perlu dipetakan:
+{json.dumps(batch, ensure_ascii=False)}
+
+Kembalikan satu objek untuk setiap row dengan urutan dan row yang sama:
+[
+  {{
+    "row": 2,
+    "project_role": "kode persis dari katalog",
+    "division_name": "nama divisi kerja yang ringkas dan profesional",
+    "confidence": 0.0,
+    "reasoning": "alasan singkat pemetaan"
+  }}
+]
+confidence harus angka 0 sampai 1. Gunakan default_division katalog sebagai acuan utama.
+Jika posisi ambigu, pilih role terdekat dan beri confidence di bawah 0.6.
+"""
+            raw = await self._chat_completion(
+                system_prompt,
+                user_message,
+                route="analysis",
+            )
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1]
+                cleaned = cleaned.rsplit("```", 1)[0].strip()
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Respons pemetaan posisi AI bukan JSON yang valid") from exc
+            if not isinstance(parsed, list):
+                raise ValueError("Respons pemetaan posisi AI harus berupa daftar")
+            results.extend(item for item in parsed if isinstance(item, dict))
+        return results
+
     # -----------------------------------------------------------------------------
     # DOCUMENT ANALYSIS
     # -----------------------------------------------------------------------------
@@ -186,7 +250,54 @@ Jangan mengarang spesifikasi material. Isi hanya data yang tertulis atau didukun
             return " ".join(
                 node.text or "" for node in root.iter(namespace + "t")
             )
+        if suffix == "xlsx":
+            return AIService._extract_xlsx_text(content)
         return content.decode("utf-8", errors="ignore")
+
+    @staticmethod
+    def _extract_xlsx_text(content: bytes) -> str:
+        """Ekstrak nilai sel XLSX tanpa bergantung pada runtime spreadsheet desktop."""
+        spreadsheet_ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        lines: list[str] = []
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            shared_strings: list[str] = []
+            if "xl/sharedStrings.xml" in archive.namelist():
+                shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+                for item in shared_root.iter(spreadsheet_ns + "si"):
+                    shared_strings.append(
+                        "".join(node.text or "" for node in item.iter(spreadsheet_ns + "t"))
+                    )
+
+            sheet_paths = sorted(
+                name
+                for name in archive.namelist()
+                if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
+            )
+            for sheet_number, sheet_path in enumerate(sheet_paths, start=1):
+                lines.append(f"[Sheet {sheet_number}]")
+                sheet_root = ET.fromstring(archive.read(sheet_path))
+                for row in sheet_root.iter(spreadsheet_ns + "row"):
+                    row_values: list[str] = []
+                    for cell in row.iter(spreadsheet_ns + "c"):
+                        cell_type = cell.attrib.get("t")
+                        if cell_type == "inlineStr":
+                            value = "".join(
+                                node.text or "" for node in cell.iter(spreadsheet_ns + "t")
+                            )
+                        else:
+                            value_node = cell.find(spreadsheet_ns + "v")
+                            value = value_node.text if value_node is not None and value_node.text else ""
+                            if cell_type == "s" and value:
+                                try:
+                                    value = shared_strings[int(value)]
+                                except (IndexError, ValueError):
+                                    pass
+                        row_values.append(value)
+                    if any(value.strip() for value in row_values):
+                        lines.append("\t".join(row_values))
+
+        return "\n".join(lines)
 
     # -----------------------------------------------------------------------------
     # TASK GENERATION

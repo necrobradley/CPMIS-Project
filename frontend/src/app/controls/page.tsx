@@ -365,6 +365,12 @@ export default function ControlsPage() {
   const summary = summaryQuery.data
   const myWork = myWorkQuery.data
   const productivityBenchmarks = productivityQuery.data || []
+  const activeContentLoading = activeTab === 'today'
+    ? myWorkQuery.isLoading
+    : summaryQuery.isLoading || (activeTab === 'strategy' && productivityQuery.isLoading)
+  const activeContentError = activeTab === 'today'
+    ? myWorkQuery.isError
+    : summaryQuery.isError || (activeTab === 'strategy' && productivityQuery.isError)
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['controls-summary'] })
@@ -552,10 +558,10 @@ export default function ControlsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-8">
-        {kpis.map((item) => <div key={item.label} className="border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 min-[1900px]:grid-cols-8">
+        {kpis.map((item) => <div key={item.label} className="min-w-0 border border-slate-200 bg-white p-4 shadow-sm">
           <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.tone}`}><item.icon size={18} /></div>
-          <p className="mt-3 text-2xl font-bold text-slate-950">{item.value}</p>
+          <p className="metric-value mt-3 text-xl font-bold leading-tight text-slate-950 sm:text-2xl">{item.value}</p>
           <p className="mt-0.5 text-xs font-medium text-slate-500">{item.label}</p>
         </div>)}
       </div>
@@ -568,7 +574,25 @@ export default function ControlsPage() {
         </div>
       </div>
 
-      {(summaryQuery.isLoading || myWorkQuery.isLoading) && <div className="flex min-h-72 items-center justify-center"><Loader2 className="animate-spin text-cyan-600" /></div>}
+      {activeContentLoading && (
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-sm text-slate-500">
+          <Loader2 className="animate-spin text-cyan-600" />
+          <p>Menyiapkan data Project Controls...</p>
+        </div>
+      )}
+      {!activeContentLoading && activeContentError && (
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 border border-rose-200 bg-rose-50 text-center text-sm text-rose-700">
+          <AlertTriangle size={24} />
+          <p>Data belum berhasil dimuat. Periksa koneksi lalu coba kembali.</p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => activeTab === 'today' ? myWorkQuery.refetch() : summaryQuery.refetch()}
+          >
+            <RefreshCw size={15} /> Coba lagi
+          </button>
+        </div>
+      )}
 
       {activeTab === 'today' && myWork && <section className="space-y-5">
         <div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-900">My Work Today</h2><p className="text-xs font-medium uppercase text-slate-400">Role: {myWork.role}</p></div><span className="badge-info">{myWork.tasks.length} task aktif</span></div>
@@ -635,7 +659,7 @@ export default function ControlsPage() {
           <div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Perlu review teknis</p><p className="mt-2 text-2xl font-bold text-slate-950">{metrics?.vendor_review_count || 0}</p></div>
           <div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Rekomendasi vendor</p><p className="mt-2 text-2xl font-bold text-slate-950">{metrics?.vendor_recommended_count || 0}</p></div>
           <div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Make-or-buy review</p><p className="mt-2 text-2xl font-bold text-slate-950">{metrics?.make_or_buy_review_count || 0}</p></div>
-          <div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Potensi saving vendor</p><p className="mt-2 text-2xl font-bold text-emerald-700">{currency(metrics?.vendor_saving_potential)}</p></div>
+          <div className="min-w-0 border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Potensi saving vendor</p><p className="metric-value mt-2 text-2xl font-bold text-emerald-700">{currency(metrics?.vendor_saving_potential)}</p></div>
         </div>
         {isReviewer && <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="overflow-hidden border border-slate-200 bg-white">
@@ -792,7 +816,7 @@ export default function ControlsPage() {
       </section>}
 
       {activeTab === 'cost' && summary && <section className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-3"><div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Contract value</p><p className="mt-2 text-2xl font-bold text-slate-950">{currency(summary.project.contract_value)}</p></div><div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Control budget</p><p className="mt-2 text-2xl font-bold text-slate-950">{currency(metrics?.budget_cost)}</p></div><div className="border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Actual cost</p><p className="mt-2 text-2xl font-bold text-slate-950">{currency(metrics?.actual_cost)}</p><p className={`mt-1 text-xs font-semibold ${(metrics?.actual_cost || 0) > (metrics?.budget_cost || 0) ? 'text-rose-600' : 'text-emerald-600'}`}>Variance {currency((metrics?.budget_cost || 0) - (metrics?.actual_cost || 0))}</p></div></div>
+        <div className="grid gap-4 md:grid-cols-3"><div className="min-w-0 border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Contract value</p><p className="metric-value mt-2 text-2xl font-bold text-slate-950">{currency(summary.project.contract_value)}</p></div><div className="min-w-0 border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Control budget</p><p className="metric-value mt-2 text-2xl font-bold text-slate-950">{currency(metrics?.budget_cost)}</p></div><div className="min-w-0 border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-400">Actual cost</p><p className="metric-value mt-2 text-2xl font-bold text-slate-950">{currency(metrics?.actual_cost)}</p><p className={`metric-value mt-1 text-xs font-semibold ${(metrics?.actual_cost || 0) > (metrics?.budget_cost || 0) ? 'text-rose-600' : 'text-emerald-600'}`}>Variance {currency((metrics?.budget_cost || 0) - (metrics?.actual_cost || 0))}</p></div></div>
         <div className="overflow-x-auto border border-slate-200 bg-white"><table className="min-w-[850px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Pekerjaan</th><th className="px-4 py-3">Progress volume</th><th className="px-4 py-3">Budget</th><th className="px-4 py-3">Actual</th><th className="px-4 py-3">Variance</th></tr></thead><tbody className="divide-y divide-slate-100">{summary.tasks.map((task) => <tr key={task.id}><td className="px-4 py-3"><p className="font-semibold text-slate-800">{task.title}</p><p className="text-xs text-slate-400">{task.wbs_code || '-'}</p></td><td className="px-4 py-3"><p>{number(task.actual_quantity)} / {number(task.planned_quantity)} {task.unit || ''}</p><div className="mt-1 h-1.5 w-36 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-cyan-500" style={{ width: `${Math.min(100, task.progress_percent)}%` }} /></div></td><td className="px-4 py-3">{currency(task.budget_cost)}</td><td className="px-4 py-3">{currency(task.actual_cost)}</td><td className={`px-4 py-3 font-semibold ${task.actual_cost > task.budget_cost && task.budget_cost > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{currency(task.budget_cost - task.actual_cost)}</td></tr>)}</tbody></table></div>
       </section>}
 

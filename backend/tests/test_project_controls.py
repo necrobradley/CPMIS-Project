@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.db.database import Base
@@ -10,7 +10,13 @@ from app.models.user import (
     TaskDependency, TaskMaterialSpecification, TaskPriority, TaskStatus, User, UserRole,
     VendorProfile, VendorRateCard,
 )
-from app.services.project_controls import apply_approved_report, task_gate_snapshot, vendor_strategy_snapshot
+from app.services.project_controls import (
+    apply_approved_report,
+    my_work_summary,
+    project_controls_summary,
+    task_gate_snapshot,
+    vendor_strategy_snapshot,
+)
 
 
 def build_database():
@@ -46,6 +52,52 @@ def build_database():
     db.add_all([control, material])
     db.commit()
     return db, manager, project, task, material
+
+
+def _add_control_tasks(db, manager, project, count=29):
+    for index in range(count):
+        db.add(Task(
+            title=f"Control task {index}",
+            project_id=project.id,
+            created_by=manager.id,
+            status=TaskStatus.TODO,
+        ))
+    db.commit()
+
+
+def _count_sql_queries(db, callback):
+    count = 0
+
+    def before_cursor_execute(*args, **kwargs):
+        nonlocal count
+        count += 1
+
+    event.listen(db.bind, "before_cursor_execute", before_cursor_execute)
+    try:
+        result = callback()
+    finally:
+        event.remove(db.bind, "before_cursor_execute", before_cursor_execute)
+    return result, count
+
+
+def test_my_work_query_count_does_not_grow_per_task():
+    db, manager, project, _, _ = build_database()
+    _add_control_tasks(db, manager, project)
+
+    result, query_count = _count_sql_queries(db, lambda: my_work_summary(db, manager))
+
+    assert len(result["tasks"]) == 30
+    assert query_count <= 25
+
+
+def test_project_controls_summary_query_count_does_not_grow_per_task():
+    db, manager, project, _, _ = build_database()
+    _add_control_tasks(db, manager, project)
+
+    result, query_count = _count_sql_queries(db, lambda: project_controls_summary(db, project))
+
+    assert len(result["tasks"]) == 30
+    assert query_count <= 40
 
 
 def test_start_gate_requires_material_and_predecessor():

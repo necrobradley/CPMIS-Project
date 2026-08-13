@@ -18,8 +18,10 @@ REVIEW_ROLES = {UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER}
 
 
 def can_access_task(user: User, task: Task) -> bool:
-    if user.role in {UserRole.ADMIN, UserRole.DIRECTOR}:
+    if user.role == UserRole.DIRECTOR:
         return True
+    if user.role == UserRole.ADMIN:
+        return can_access_project(user, task.project)
     if (
         user.role in {UserRole.STAFF, UserRole.SUBCONTRACTOR}
         and (getattr(task, "approval_status", None) or ApprovalStatus.APPROVED.value) != ApprovalStatus.APPROVED.value
@@ -45,8 +47,15 @@ def can_access_task(user: User, task: Task) -> bool:
 
 
 def can_access_project(user: User, project: Project) -> bool:
-    if user.role in {UserRole.ADMIN, UserRole.DIRECTOR}:
+    if user.role == UserRole.DIRECTOR:
         return True
+    if user.role == UserRole.ADMIN:
+        return any(
+            item.user_id == user.id
+            and item.is_active
+            and item.project_role == "project_admin"
+            for item in project.memberships
+        )
     if project.owner_id == user.id:
         return True
     if any(item.user_id == user.id and item.is_active for item in project.memberships):

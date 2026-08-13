@@ -10,7 +10,7 @@ export default function BrandLoadingScreen() {
             alt="Rencanix"
             width={420}
             height={130}
-            className="h-auto w-full object-contain"
+            className="h-auto w-full max-w-[260px] object-contain"
             priority
           />
         </div>

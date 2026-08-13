@@ -9,12 +9,16 @@ from app.api.v1.endpoints.projects import (
     list_project_role_policy,
     update_project_role_policy,
 )
-from app.api.v1.endpoints.settings import create_commercial_tenant, list_tenant_entitlements
+from app.api.v1.endpoints.settings import (
+    create_commercial_tenant, list_project_features, list_tenant_entitlements,
+    update_project_feature,
+)
 from app.api.v1.endpoints.users import create_user_with_project_setup, update_user_project_setup
 from app.db.database import Base
 from app.models.user import Division, FeatureFlag, Project, ProjectMembership, ProjectRolePolicy, User, UserRole
 from app.schemas.schemas import (
     CommercialTenantCreate,
+    FeatureFlagUpdate,
     ProjectCreate,
     ProjectMemberCreate,
     ProjectRolePolicyUpdate,
@@ -45,6 +49,19 @@ def build_database():
     db.flush()
     project.owner_id = admin.id
     db.add(project)
+    db.flush()
+    db.add(ProjectMembership(
+        project_id=project.id,
+        user_id=admin.id,
+        project_role="project_admin",
+        is_active=True,
+    ))
+    db.add(ProjectMembership(
+        project_id=project.id,
+        user_id=staff.id,
+        project_role="staff",
+        is_active=True,
+    ))
     db.commit()
     db.refresh(admin)
     db.refresh(staff)
@@ -55,13 +72,21 @@ def build_database():
 def test_commercial_tenant_bootstraps_entitlements_and_limits():
     db, admin, _, _ = build_database()
     bootstrap_feature_flags(db)
+    owner = User(
+        name="Platform Owner",
+        email="owner-commercial@test.local",
+        password_hash="x",
+        role=UserRole.OWNER,
+    )
+    db.add(owner)
+    db.commit()
 
     tenant = create_commercial_tenant(
         CommercialTenantCreate(name="PT Pilot CPMIS", plan_key="starter"),
         db,
-        admin,
+        owner,
     )
-    entitlements = list_tenant_entitlements(tenant.id, db, admin)
+    entitlements = list_tenant_entitlements(tenant.id, db, owner)
     dashboard = next(item for item in entitlements if item["feature_key"] == "dashboard")
     telegram = next(item for item in entitlements if item["feature_key"] == "telegram")
 
@@ -119,7 +144,7 @@ def test_only_app_admin_can_update_project_role_policy():
         )
 
     assert exc.value.status_code == 403
-    assert "admin aplikasi" in exc.value.detail
+    assert "Admin Proyek" in exc.value.detail
 
 
 def test_non_app_admin_cannot_assign_project_admin_role():
@@ -153,21 +178,27 @@ def test_non_app_admin_cannot_assign_project_admin_role():
     assert "admin proyek" in exc.value.detail
 
 
-def test_app_admin_creating_project_does_not_become_project_admin():
+def test_project_admin_cannot_create_a_second_project():
     db, admin, _, _ = build_database()
 
-    project = create_project(
-        ProjectCreate(project_name="Separated Admin Project"),
-        db,
-        admin,
-    )
-    membership = db.query(ProjectMembership).filter_by(
-        project_id=project["id"],
-        user_id=admin.id,
-    ).first()
+    with pytest.raises(HTTPException) as exc:
+        create_project(ProjectCreate(project_name="Second Project"), db, admin)
+    assert exc.value.status_code == 409
+    assert "satu proyek" in exc.value.detail.lower()
 
-    assert project["project_name"] == "Separated Admin Project"
-    assert membership is None
+
+def test_unassigned_project_admin_becomes_the_only_project_admin_on_create():
+    db, _, _, _ = build_database()
+    admin = User(name="New Admin", email="new-admin@test.local", password_hash="x", role=UserRole.ADMIN)
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+
+    project = create_project(ProjectCreate(project_name="New Project"), db, admin)
+    membership = db.query(ProjectMembership).filter_by(project_id=project["id"], user_id=admin.id).first()
+
+    assert membership is not None
+    assert membership.project_role == "project_admin"
 
 
 def test_app_admin_account_cannot_be_project_admin_membership():
@@ -188,7 +219,29 @@ def test_app_admin_account_cannot_be_project_admin_membership():
         )
 
     assert exc.value.status_code == 400
-    assert "tidak boleh dirangkap" in exc.value.detail
+    assert "tidak dapat membuat" in exc.value.detail
+
+
+def test_owner_can_choose_features_for_each_project():
+    db, _, _, project = build_database()
+    owner = User(name="Platform Owner", email="feature-owner@test.local", password_hash="x", role=UserRole.OWNER)
+    db.add(owner)
+    db.commit()
+    db.refresh(owner)
+    bootstrap_feature_flags(db)
+
+    updated = update_project_feature(
+        project.id,
+        "telegram",
+        FeatureFlagUpdate(enabled=False),
+        db,
+        owner,
+    )
+    features = list_project_features(project.id, db, owner)
+    telegram = next(item for item in features if item["feature_key"] == "telegram")
+
+    assert updated["enabled"] is False
+    assert telegram["enabled"] is False
 
 
 def test_admin_setup_creates_user_and_project_membership():

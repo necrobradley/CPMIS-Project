@@ -86,7 +86,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 animate-in overflow-hidden">
+        <div className="fixed left-4 right-4 top-16 z-50 w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl animate-in lg:absolute lg:left-full lg:right-auto lg:top-0 lg:ml-3 lg:w-80">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <span className="font-semibold text-slate-800 text-sm">Notifikasi</span>
             <div className="flex items-center gap-2">

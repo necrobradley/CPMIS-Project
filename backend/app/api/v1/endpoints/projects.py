@@ -25,9 +25,11 @@ from app.services.project_role_catalog import (
     role_requires_division,
 )
 from app.services.report_workflow import ensure_project_access
+from app.services.feature_flags import bootstrap_project_feature_entitlements
+from app.services.project_dataset import sync_dataset_task_divisions
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
-FINANCIAL_ROLES = (UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)
+FINANCIAL_ROLES = (UserRole.OWNER, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)
 PROJECT_ADMIN_ROLES = {"project_admin"}
 
 
@@ -51,6 +53,7 @@ def _project_response(project: Project, user: User) -> dict:
         "start_date": project.start_date,
         "end_date": project.end_date,
         "status": project.status,
+        "plan_key": project.plan_key,
         "owner_id": project.owner_id,
         "progress_percent": project.progress_percent,
         "created_at": project.created_at,
@@ -80,9 +83,9 @@ def _membership_response(membership: ProjectMembership, user: User) -> dict:
     }
 
 
-def _ensure_app_admin(user: User) -> None:
+def _ensure_project_admin(user: User) -> None:
     if user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Hanya admin aplikasi yang dapat mengubah struktur admin proyek")
+        raise HTTPException(status_code=403, detail="Hanya Admin Proyek yang dapat mengubah struktur role proyek")
 
 
 def _ensure_project_admin_assignment_allowed(
@@ -95,7 +98,7 @@ def _ensure_project_admin_assignment_allowed(
     if (current_is_project_admin or next_is_project_admin) and user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
-            detail="Pembuatan atau perubahan admin proyek hanya boleh dilakukan oleh admin aplikasi",
+            detail="Pembuatan atau perubahan role admin proyek hanya boleh dilakukan oleh Admin Proyek",
         )
 
 
@@ -171,29 +174,37 @@ def list_projects(
     """Ambil daftar proyek berdasarkan role user."""
     query = db.query(Project)
 
-    # Director & Admin lihat semua; role lain melihat proyek yang benar-benar terkait
-    # dengan pekerjaan, divisi, atau laporan mereka.
-    if current_user.role not in [UserRole.ADMIN, UserRole.DIRECTOR]:
-        project_ids = {p.id for p in db.query(Project).filter(Project.owner_id == current_user.id).all()}
+    # Hanya Owner dan Director yang melihat seluruh proyek; role operasional dibatasi relasinya.
+    if current_user.role not in [UserRole.OWNER, UserRole.DIRECTOR]:
+        project_ids = set()
 
-        memberships = db.query(ProjectMembership).filter(
+        if current_user.role != UserRole.ADMIN:
+            project_ids.update(
+                p.id for p in db.query(Project).filter(Project.owner_id == current_user.id).all()
+            )
+
+        membership_query = db.query(ProjectMembership).filter(
             ProjectMembership.user_id == current_user.id,
             ProjectMembership.is_active == True,
-        ).all()
+        )
+        if current_user.role == UserRole.ADMIN:
+            membership_query = membership_query.filter(ProjectMembership.project_role == "project_admin")
+        memberships = membership_query.all()
         project_ids.update(item.project_id for item in memberships)
 
-        managed_divisions = db.query(Division).filter(Division.manager_id == current_user.id).all()
-        project_ids.update(d.project_id for d in managed_divisions)
+        if current_user.role != UserRole.ADMIN:
+            managed_divisions = db.query(Division).filter(Division.manager_id == current_user.id).all()
+            project_ids.update(d.project_id for d in managed_divisions)
 
-        assigned_tasks = db.query(Task).filter(
-            (Task.assigned_to == current_user.id) |
-            (Task.created_by == current_user.id) |
-            (Task.division_id == current_user.division_id)
-        ).all()
-        project_ids.update(t.project_id for t in assigned_tasks)
+            assigned_tasks = db.query(Task).filter(
+                (Task.assigned_to == current_user.id) |
+                (Task.created_by == current_user.id) |
+                (Task.division_id == current_user.division_id)
+            ).all()
+            project_ids.update(t.project_id for t in assigned_tasks)
 
-        own_reports = db.query(DailyReport).filter(DailyReport.user_id == current_user.id).all()
-        project_ids.update(r.project_id for r in own_reports)
+            own_reports = db.query(DailyReport).filter(DailyReport.user_id == current_user.id).all()
+            project_ids.update(r.project_id for r in own_reports)
 
         if not project_ids:
             return []
@@ -213,9 +224,23 @@ def create_project(
     current_user: User = Depends(require_roles(UserRole.ADMIN))
 ):
     """Buat proyek baru."""
+    existing_admin_project = db.query(ProjectMembership).filter(
+        ProjectMembership.user_id == current_user.id,
+        ProjectMembership.project_role == "project_admin",
+        ProjectMembership.is_active == True,
+    ).first()
+    if existing_admin_project:
+        raise HTTPException(status_code=409, detail="Satu Admin Proyek hanya dapat mewakili satu proyek")
     project = Project(**data.model_dump(), owner_id=current_user.id)
     db.add(project)
     db.flush()
+    db.add(ProjectMembership(
+        project_id=project.id,
+        user_id=current_user.id,
+        project_role="project_admin",
+        is_active=True,
+    ))
+    bootstrap_project_feature_entitlements(db, project, current_user.id)
     log_audit(
         db,
         actor_id=current_user.id,
@@ -274,7 +299,7 @@ def update_project_role_policy(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
-    _ensure_app_admin(current_user)
+    _ensure_project_admin(current_user)
     ensure_project_access(current_user, project)
     if not is_valid_project_role(role_code):
         raise HTTPException(status_code=400, detail="Peran proyek tidak valid")
@@ -358,6 +383,7 @@ def delete_project(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
+    ensure_project_access(current_user, project)
 
     db.query(AuditLog).filter(AuditLog.project_id == project.id).update(
         {AuditLog.project_id: None}, synchronize_session=False,
@@ -391,6 +417,9 @@ def list_divisions(
     if not project:
         raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
     ensure_project_access(current_user, project)
+    division_sync = sync_dataset_task_divisions(db, project_id)
+    if division_sync["tasks_updated"] or division_sync["divisions_created"]:
+        db.commit()
     query = db.query(Division).filter(Division.project_id == project_id)
     if current_user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR):
         division_ids = _staff_accessible_division_ids(db, project_id, current_user)
@@ -515,6 +544,27 @@ def _validate_member_data(
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if not user:
         raise HTTPException(status_code=404, detail="User aktif tidak ditemukan")
+    if user.role == UserRole.OWNER:
+        raise HTTPException(status_code=400, detail="Admin Owner tidak dapat menjadi anggota proyek")
+    if project_role == "project_admin":
+        if user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=400, detail="Role Admin Proyek hanya dapat diberikan kepada akun Admin Proyek")
+        other_project_admin = db.query(ProjectMembership).filter(
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.user_id != user_id,
+            ProjectMembership.project_role == "project_admin",
+            ProjectMembership.is_active == True,
+        ).first()
+        if other_project_admin:
+            raise HTTPException(status_code=409, detail="Proyek sudah memiliki Admin Proyek")
+        other_admin_project = db.query(ProjectMembership).filter(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id != project_id,
+            ProjectMembership.project_role == "project_admin",
+            ProjectMembership.is_active == True,
+        ).first()
+        if other_admin_project:
+            raise HTTPException(status_code=409, detail="Akun Admin Proyek sudah mewakili proyek lain")
     if not is_valid_project_role(project_role):
         raise HTTPException(status_code=400, detail="Peran proyek tidak valid")
     if project_role != current_role and not _is_project_role_enabled(db, project_id, project_role):
@@ -624,6 +674,8 @@ def update_project_member(
         raise HTTPException(status_code=404, detail="Anggota proyek tidak ditemukan")
     next_division = data.division_id if "division_id" in data.model_fields_set else membership.division_id
     next_role = data.project_role if data.project_role is not None else membership.project_role
+    if membership.project_role == "project_admin" and next_role != "project_admin":
+        raise HTTPException(status_code=409, detail="Proyek wajib memiliki tepat satu Admin Proyek")
     _ensure_project_admin_assignment_allowed(current_user, membership.project_role, next_role)
     _validate_member_data(db, project_id, membership.user_id, next_division, next_role, current_role=membership.project_role)
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -650,6 +702,8 @@ def remove_project_member(
     ).first()
     if not membership:
         raise HTTPException(status_code=404, detail="Anggota proyek tidak ditemukan")
+    if membership.project_role == "project_admin":
+        raise HTTPException(status_code=409, detail="Admin Proyek utama tidak dapat dikeluarkan dari proyek")
     _ensure_project_admin_assignment_allowed(current_user, membership.project_role, None)
     if db.query(Task).filter(
         Task.project_id == project_id,

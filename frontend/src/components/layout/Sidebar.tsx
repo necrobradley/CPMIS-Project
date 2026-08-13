@@ -26,7 +26,9 @@ type NavItem = {
   staffLabel?: string
   icon: typeof LayoutDashboard
   featureKey?: string
-  adminOnly?: boolean
+  projectAdminOnly?: boolean
+  ownerOnly?: boolean
+  ownerAllowed?: boolean
   executiveOnly?: boolean
   managementOnly?: boolean
   staffOnly?: boolean
@@ -76,10 +78,11 @@ const navSections: { title: string; items: NavItem[] }[] = [
     title: 'Admin & governance',
     items: [
       { href: '/subcontractor',  label: 'Portal Subkon',    icon: Building, featureKey: 'subcontractor', subOnly: true, subAllowed: true },
-      { href: '/users',          label: 'Pengguna',         icon: Users, featureKey: 'users', adminOnly: true },
-      { href: '/admin',          label: 'Admin Console',    icon: Settings, featureKey: 'admin_console', adminOnly: true },
-      { href: '/audit',          label: 'Audit Trail',      icon: History, featureKey: 'audit', managementOnly: true },
-      { href: '/research',       label: 'Research Export',  icon: FileDown, featureKey: 'research', executiveOnly: true },
+      { href: '/users',          label: 'Pengguna',         icon: Users, featureKey: 'users', projectAdminOnly: true },
+      { href: '/admin',          label: 'Admin Proyek',     icon: Settings, featureKey: 'admin_console', projectAdminOnly: true },
+      { href: '/owner',          label: 'Admin Owner',      icon: ShieldCheck, ownerOnly: true },
+      { href: '/audit',          label: 'Audit Trail',      icon: History, featureKey: 'audit', managementOnly: true, ownerAllowed: true },
+      { href: '/research',       label: 'Research Export',  icon: FileDown, featureKey: 'research', executiveOnly: true, ownerAllowed: true },
     ],
   },
 ]
@@ -89,8 +92,9 @@ export default function Sidebar() {
   const { user, logout } = useAuthStore()
   const navRef = useRef<HTMLElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const isOwnerAdmin = user?.role === 'admin'
-  const isManagement = isOwnerAdmin || user?.role === 'director' || user?.role === 'manager'
+  const isOwner = user?.role === 'owner'
+  const isProjectAdmin = user?.role === 'admin'
+  const isManagement = isProjectAdmin || user?.role === 'director' || user?.role === 'manager'
   const isStaff = user?.role === 'staff'
   const isSub    = user?.role === 'subcontractor'
   const persona = rolePersona(user?.role)
@@ -108,10 +112,12 @@ export default function Sidebar() {
   const isFeatureVisible = (featureKey?: string) =>
     !featureKey || featureFlags.length === 0 || featureMap.get(featureKey) !== false
   const isNavItemVisible = (item: NavItem) => {
-    if (item.adminOnly && !isOwnerAdmin) return false
+    if (isOwner) return (item.ownerOnly || item.ownerAllowed) && isFeatureVisible(item.featureKey)
+    if (item.ownerOnly) return false
+    if (item.projectAdminOnly && !isProjectAdmin) return false
     if (item.staffOnly && !isStaff) return false
     if (item.hideForStaff && isStaff) return false
-    if (item.executiveOnly && !(isOwnerAdmin || user?.role === 'director')) return false
+    if (item.executiveOnly && !(isProjectAdmin || user?.role === 'director')) return false
     if (item.managementOnly && !isManagement) return false
     if (item.subOnly && !isSub) return false
     if (isSub && !item.subAllowed) return false
@@ -152,7 +158,7 @@ export default function Sidebar() {
       <div className="border-b border-slate-800 px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-12 min-w-0 flex-1 items-center rounded-xl bg-white px-3 shadow-sm">
-            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="mx-auto h-auto w-full max-w-[170px] object-contain" priority />
           </div>
           <div className="ml-auto">
             <div className="hidden lg:block"><NotificationBell /></div>

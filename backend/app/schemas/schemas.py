@@ -53,9 +53,34 @@ class PasswordChangeRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def new_password_min_length(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password baru minimal 8 karakter")
+        if len(v) < 10:
+            raise ValueError("Password baru minimal 10 karakter")
+        if not any(character.isupper() for character in v) or not any(character.islower() for character in v) or not any(character.isdigit() for character in v):
+            raise ValueError("Password wajib memiliki huruf besar, huruf kecil, dan angka")
         return v
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailTokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class PasswordTokenRequest(EmailTokenRequest):
+    password: str = Field(min_length=10, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if not any(character.isupper() for character in value):
+            raise ValueError("Password wajib memiliki huruf besar")
+        if not any(character.islower() for character in value):
+            raise ValueError("Password wajib memiliki huruf kecil")
+        if not any(character.isdigit() for character in value):
+            raise ValueError("Password wajib memiliki angka")
+        return value
 
 
 # ─────────────────────────────────────────────
@@ -65,7 +90,7 @@ class PasswordChangeRequest(BaseModel):
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    password: Optional[str] = None
     role: UserRole = UserRole.STAFF
     phone: Optional[str] = None
     division_id: Optional[int] = None
@@ -73,7 +98,7 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def password_min_length(cls, v):
-        if len(v) < 8:
+        if v is not None and len(v) < 8:
             raise ValueError("Password minimal 8 karakter")
         return v
 
@@ -96,6 +121,9 @@ class UserResponse(BaseModel):
     telegram_id: Optional[str]
     avatar_url: Optional[str] = None
     is_active: bool
+    email_verified_at: Optional[datetime] = None
+    email_verification_required: bool = False
+    must_set_password: bool = False
     created_at: datetime
 
     class Config:
@@ -306,6 +334,7 @@ class ProjectResponse(BaseModel):
     start_date: Optional[datetime]
     end_date: Optional[datetime]
     status: ProjectStatus
+    plan_key: Optional[Literal["starter", "professional", "enterprise"]] = None
     owner_id: int
     progress_percent: float
     created_at: datetime
@@ -372,6 +401,8 @@ class ProjectMemberResponse(BaseModel):
 class UserProjectSetupResponse(BaseModel):
     user: UserResponse
     membership: Optional[ProjectMemberResponse] = None
+    invitation_sent: bool = False
+    invitation_message: Optional[str] = None
 
 
 class ProjectMemberRoleCatalogResponse(BaseModel):
@@ -1245,6 +1276,19 @@ class CommunicationDetailResponse(CommunicationResponse):
 
 class FeatureFlagUpdate(BaseModel):
     enabled: bool
+
+
+class ProjectPlanUpdate(BaseModel):
+    plan_key: Literal["starter", "professional", "enterprise"]
+
+
+class ProjectPlanResponse(BaseModel):
+    project_id: int
+    project_name: str
+    plan_key: Literal["starter", "professional", "enterprise"]
+    plan_name: str
+    enabled_features: int
+    total_features: int
 
 
 class FeatureFlagResponse(BaseModel):

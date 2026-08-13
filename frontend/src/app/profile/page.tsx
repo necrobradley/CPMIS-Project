@@ -92,8 +92,8 @@ export default function ProfilePage() {
 
   function submitPassword(event: React.FormEvent) {
     event.preventDefault()
-    if (passwordForm.new_password.length < 8) {
-      toast.error('Password baru minimal 8 karakter')
+    if (passwordForm.new_password.length < 10 || !/[A-Z]/.test(passwordForm.new_password) || !/[a-z]/.test(passwordForm.new_password) || !/\d/.test(passwordForm.new_password)) {
+      toast.error('Password minimal 10 karakter dengan huruf besar, huruf kecil, dan angka')
       return
     }
     if (passwordForm.new_password !== passwordForm.confirm_password) {
@@ -175,7 +175,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <h2 className="font-semibold text-slate-900">Data profil</h2>
-              <p className="text-xs text-slate-500">Email dan role dikendalikan admin aplikasi.</p>
+              <p className="text-xs text-slate-500">Email dan role dikendalikan oleh Admin Proyek.</p>
             </div>
           </div>
           <div className="space-y-4">
@@ -205,7 +205,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <h2 className="font-semibold text-slate-900">Ganti password</h2>
-              <p className="text-xs text-slate-500">Gunakan setelah menerima temporary password dari admin.</p>
+              <p className="text-xs text-slate-500">Perbarui password secara berkala. Perubahan ini menghentikan seluruh sesi lama.</p>
             </div>
           </div>
           <div className="space-y-4">

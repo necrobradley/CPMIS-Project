@@ -1,12 +1,15 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user, require_roles
 from app.db.database import get_db
-from app.models.user import FeatureFlag, Tenant, TenantFeatureEntitlement, User, UserRole
+from app.models.user import (
+    FeatureFlag, Project, ProjectFeatureEntitlement, ProjectMembership,
+    Tenant, TenantFeatureEntitlement, User, UserRole,
+)
 from app.schemas.schemas import (
     CommercialEntitlementResponse,
     CommercialEntitlementUpdate,
@@ -18,8 +21,12 @@ from app.schemas.schemas import (
     CommercialUsageResponse,
     FeatureFlagResponse,
     FeatureFlagUpdate,
+    ProjectPlanResponse,
+    ProjectPlanUpdate,
 )
 from app.services.audit_service import log_audit
+from app.services.feature_flags import apply_project_plan_entitlements, bootstrap_project_feature_entitlements
+from app.services.report_workflow import can_access_project
 from app.services.commercial import (
     USAGE_METRICS,
     apply_plan_limits,
@@ -35,13 +42,51 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 
 @router.get("/features", response_model=List[FeatureFlagResponse])
 def list_feature_flags(
+    project_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return db.query(FeatureFlag).order_by(
+    flags = db.query(FeatureFlag).order_by(
         FeatureFlag.category.asc(),
         FeatureFlag.label.asc(),
     ).all()
+    if project_id is None and current_user.role != UserRole.OWNER:
+        membership_query = db.query(ProjectMembership).filter(
+            ProjectMembership.user_id == current_user.id,
+            ProjectMembership.is_active == True,
+        )
+        if current_user.role == UserRole.ADMIN:
+            membership_query = membership_query.filter(ProjectMembership.project_role == "project_admin")
+        memberships = membership_query.limit(2).all()
+        project_id = memberships[0].project_id if len(memberships) == 1 else None
+    if project_id is None:
+        return flags
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
+    if current_user.role != UserRole.OWNER and not can_access_project(current_user, project):
+        raise HTTPException(status_code=403, detail="Proyek tidak tersedia untuk akun ini")
+    entitlements = {
+        item.feature_key: item
+        for item in bootstrap_project_feature_entitlements(db, project, current_user.id)
+    }
+    db.commit()
+    return [
+        {
+            "id": flag.id,
+            "feature_key": flag.feature_key,
+            "label": flag.label,
+            "category": flag.category,
+            "description": flag.description,
+            "enabled": bool(flag.enabled and entitlements[flag.feature_key].enabled),
+            "is_core": flag.is_core,
+            "updated_by": entitlements[flag.feature_key].updated_by,
+            "created_at": flag.created_at,
+            "updated_at": entitlements[flag.feature_key].updated_at,
+        }
+        for flag in flags
+    ]
 
 
 @router.patch("/features/{feature_key}", response_model=FeatureFlagResponse)
@@ -49,7 +94,7 @@ def update_feature_flag(
     feature_key: str,
     data: FeatureFlagUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     flag = db.query(FeatureFlag).filter(FeatureFlag.feature_key == feature_key).first()
     if not flag:
@@ -77,6 +122,109 @@ def update_feature_flag(
     return flag
 
 
+@router.get("/projects/{project_id}/features", response_model=List[FeatureFlagResponse])
+def list_project_features(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
+):
+    return list_feature_flags(project_id=project_id, db=db, current_user=current_user)
+
+
+@router.patch("/projects/{project_id}/features/{feature_key}", response_model=FeatureFlagResponse)
+def update_project_feature(
+    project_id: int,
+    feature_key: str,
+    data: FeatureFlagUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
+    flag = db.query(FeatureFlag).filter(FeatureFlag.feature_key == feature_key).first()
+    if not flag:
+        raise HTTPException(status_code=404, detail="Feature flag tidak ditemukan")
+    if flag.is_core and not data.enabled:
+        raise HTTPException(status_code=409, detail="Fitur inti proyek tidak boleh dinonaktifkan")
+
+    bootstrap_project_feature_entitlements(db, project, current_user.id)
+    entitlement = db.query(ProjectFeatureEntitlement).filter(
+        ProjectFeatureEntitlement.project_id == project_id,
+        ProjectFeatureEntitlement.feature_key == feature_key,
+    ).first()
+    before = {"enabled": entitlement.enabled}
+    entitlement.enabled = data.enabled
+    entitlement.updated_by = current_user.id
+    entitlement.updated_at = datetime.utcnow()
+    log_audit(
+        db,
+        actor_id=current_user.id,
+        action="settings.project_feature_updated",
+        entity_type="project_feature_entitlement",
+        entity_id=entitlement.id,
+        project_id=project_id,
+        summary=f"Fitur {flag.label} untuk proyek {project.project_name} diubah menjadi {'aktif' if data.enabled else 'nonaktif'}",
+        before=before,
+        after={"enabled": data.enabled},
+    )
+    db.commit()
+    db.refresh(entitlement)
+    return {
+        "id": flag.id,
+        "feature_key": flag.feature_key,
+        "label": flag.label,
+        "category": flag.category,
+        "description": flag.description,
+        "enabled": bool(flag.enabled and entitlement.enabled),
+        "is_core": flag.is_core,
+        "updated_by": entitlement.updated_by,
+        "created_at": flag.created_at,
+        "updated_at": entitlement.updated_at,
+    }
+
+
+@router.patch("/projects/{project_id}/plan", response_model=ProjectPlanResponse)
+def apply_project_plan(
+    project_id: int,
+    data: ProjectPlanUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
+
+    previous_plan = project.plan_key
+    enabled_count, total_count = apply_project_plan_entitlements(
+        db,
+        project,
+        data.plan_key,
+        current_user.id,
+    )
+    plan = serialize_plan(data.plan_key)
+    log_audit(
+        db,
+        actor_id=current_user.id,
+        action="settings.project_plan_applied",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        summary=f"Paket {plan['name']} diterapkan pada proyek {project.project_name}",
+        before={"plan_key": previous_plan},
+        after={"plan_key": data.plan_key, "enabled_features": enabled_count},
+    )
+    db.commit()
+    return {
+        "project_id": project.id,
+        "project_name": project.project_name,
+        "plan_key": data.plan_key,
+        "plan_name": plan["name"],
+        "enabled_features": enabled_count,
+        "total_features": total_count,
+    }
+
+
 @router.get("/commercial/plans", response_model=List[CommercialPlanResponse])
 def list_commercial_plans(
     db: Session = Depends(get_db),
@@ -92,7 +240,7 @@ def list_commercial_plans(
 @router.get("/commercial/readiness", response_model=CommercialReadinessResponse)
 def get_commercial_readiness(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     return commercial_readiness(db)
 
@@ -100,7 +248,7 @@ def get_commercial_readiness(
 @router.get("/commercial/tenants", response_model=List[CommercialTenantResponse])
 def list_commercial_tenants(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     return db.query(Tenant).order_by(Tenant.created_at.desc()).all()
 
@@ -109,7 +257,7 @@ def list_commercial_tenants(
 def create_commercial_tenant(
     data: CommercialTenantCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     tenant = Tenant(
         name=data.name,
@@ -152,7 +300,7 @@ def update_commercial_tenant(
     tenant_id: int,
     data: CommercialTenantUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -214,7 +362,7 @@ def update_commercial_tenant(
 def list_tenant_entitlements(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -256,7 +404,7 @@ def update_tenant_entitlement(
     feature_key: str,
     data: CommercialEntitlementUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -313,7 +461,7 @@ def update_tenant_entitlement(
 def get_tenant_usage(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
 ):
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:

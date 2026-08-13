@@ -238,14 +238,17 @@ def ensure_communication_from_source(
     return communication
 
 
-def run_sla_escalations(db: Session) -> int:
+def run_sla_escalations(db: Session, project_ids: Optional[set[int]] = None) -> int:
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=24)
-    overdue_items = db.query(CommunicationItem).filter(
+    overdue_query = db.query(CommunicationItem).filter(
         CommunicationItem.status.in_(OPEN_COMMUNICATION_STATUSES),
         CommunicationItem.due_date.isnot(None),
         CommunicationItem.due_date < now,
-    ).all()
+    )
+    if project_ids is not None:
+        overdue_query = overdue_query.filter(CommunicationItem.project_id.in_(project_ids or {-1}))
+    overdue_items = overdue_query.all()
     escalated = 0
     for item in overdue_items:
         recent_escalation = db.query(CommunicationMessage).filter(
