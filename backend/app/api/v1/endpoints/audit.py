@@ -13,7 +13,7 @@ router = APIRouter(prefix="/audit", tags=["Audit Trail"])
 
 
 def _accessible_project_ids(db: Session, user: User):
-    if user.role in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if user.role in (UserRole.OWNER, UserRole.DIRECTOR):
         return None
     return [project.id for project in db.query(Project).all() if can_access_project(user, project)]
 
@@ -25,7 +25,7 @@ def list_audit_logs(
     action: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)),
 ):
     query = db.query(AuditLog)
     accessible_ids = _accessible_project_ids(db, current_user)
@@ -49,8 +49,8 @@ def recent_audit_logs(
     current_user: User = Depends(get_current_user),
 ):
     query = db.query(AuditLog)
-    if current_user.role == UserRole.MANAGER:
+    if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
         query = query.filter(AuditLog.project_id.in_(_accessible_project_ids(db, current_user) or [-1]))
-    elif current_user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
+    elif current_user.role not in (UserRole.OWNER, UserRole.DIRECTOR):
         query = query.filter(AuditLog.actor_id == current_user.id)
     return query.order_by(AuditLog.created_at.desc()).limit(limit).all()

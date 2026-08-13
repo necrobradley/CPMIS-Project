@@ -40,7 +40,7 @@ def list_approvals(
         )
 
     approvals = query.order_by(ApprovalRequest.created_at.desc()).all()
-    if current_user.role == UserRole.MANAGER:
+    if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
         project_map = {project.id: project for project in db.query(Project).all()}
         return [item for item in approvals if item.project_id in project_map and can_access_project(current_user, project_map[item.project_id])]
     return approvals
@@ -67,6 +67,12 @@ def create_approval(
 
     if data.approver_id:
         approver = db.query(User).filter(User.id == data.approver_id).first()
+        if (
+            not approver
+            or approver.role not in (UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)
+            or not can_access_project(approver, project)
+        ):
+            raise HTTPException(status_code=422, detail="Approver harus memiliki akses ke proyek ini")
         db.add(Notification(
             user_id=data.approver_id,
             title="Approval baru",

@@ -37,12 +37,14 @@ type SetupResult = {
   demo_documents?: number
   demo_approvals?: number
   demo_communications?: number
+  verification_email_sent?: boolean
+  verification_message?: string
 }
 
 export default function InitialSetupPage() {
   const [dataset, setDataset] = useState<File | null>(null)
   const [bootstrapSecret, setBootstrapSecret] = useState('')
-  const [adminEmail, setAdminEmail] = useState('admin@cpmis.example.com')
+  const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [telegramId, setTelegramId] = useState('')
@@ -53,6 +55,7 @@ export default function InitialSetupPage() {
     event.preventDefault()
     if (!dataset) return toast.error('Pilih paket data proyek berformat ZIP terlebih dahulu')
     if (adminPassword.length < 12) return toast.error('Password admin minimal 12 karakter')
+    if (!/[A-Z]/.test(adminPassword) || !/[a-z]/.test(adminPassword) || !/\d/.test(adminPassword)) return toast.error('Password wajib memiliki huruf besar, huruf kecil, dan angka')
     if (adminPassword !== confirmPassword) return toast.error('Konfirmasi password tidak sama')
     if (!bootstrapSecret.trim()) return toast.error('Bootstrap secret wajib diisi')
 
@@ -96,8 +99,14 @@ export default function InitialSetupPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-cyan-300">First-time setup</p>
                 <h1 className="mt-1 text-2xl font-bold">Siapkan proyek pertama dari website</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                  Form ini membuat akun administrator dan mengimpor proyek pertama. Gunakan bootstrap secret yang sama dengan konfigurasi backend.
+                  Form ini membuat satu akun Admin Proyek untuk satu proyek, lalu mengimpor data awalnya. Akun Admin Owner dikelola melalui bootstrap platform terpisah.
                 </p>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
+                  Tahap awal memakai dataset terstruktur. Setelah verifikasi dan login, gunakan Admin Proyek untuk mengunggah dokumen sumber dari ZIP dan memperlihatkan proses Nemotron.
+                </p>
+                <Link href="/owner-setup" className="mt-3 inline-flex text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+                  Buka bootstrap Admin Owner satu kali →
+                </Link>
               </div>
             </div>
           </div>
@@ -133,12 +142,13 @@ export default function InitialSetupPage() {
               </label>
 
               <label className="block">
-                <span className="label">Email administrator</span>
+                <span className="label">Email Admin Proyek</span>
                 <div className="relative">
                   <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} className="input pl-9" required />
+                  <input type="email" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} className="input pl-9" placeholder="nama@perusahaan.id" required />
                 </div>
               </label>
+              <p className="-mt-3 text-xs leading-5 text-slate-500 md:col-span-2">Gunakan alamat email nyata. Admin ini hanya mewakili proyek yang sedang dibuat dan dapat mengelola akun tim proyeknya.</p>
               <label className="block">
                 <span className="label">Telegram ID staf (opsional)</span>
                 <div className="relative">
@@ -147,10 +157,10 @@ export default function InitialSetupPage() {
                 </div>
               </label>
               <label className="block">
-                <span className="label">Password administrator</span>
+                <span className="label">Password Admin Proyek</span>
                 <div className="relative">
                   <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} className="input pl-9" minLength={12} required />
+                  <input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} className="input pl-9" minLength={12} autoComplete="new-password" required />
                 </div>
               </label>
               <label className="block">
@@ -168,7 +178,7 @@ export default function InitialSetupPage() {
 
             <button disabled={loading} className="btn-primary w-full justify-center py-3">
               {loading ? <Loader2 size={17} className="animate-spin" /> : <Database size={17} />}
-              {loading ? 'Menyiapkan dan mengimpor data...' : 'Buat admin dan import proyek'}
+              {loading ? 'Menyiapkan dan mengimpor data...' : 'Buat Admin Proyek dan import proyek'}
             </button>
           </form>
         </div>
@@ -186,6 +196,9 @@ export default function InitialSetupPage() {
                 <p className="mt-2 text-xs leading-5 text-emerald-700">
                   {result.project_roles_created || 0} akun role proyek · {result.ai_role_tasks || 0} task demo AI sudah memiliki PIC
                 </p>
+                <p className={`mt-2 rounded-lg border p-3 text-xs ${result.verification_email_sent ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                  {result.verification_message || 'Periksa email admin untuk memverifikasi akun sebelum login pertama.'}
+                </p>
                 {result.demo_features_seeded && (
                   <p className="mt-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800">
                     Data presentasi aktif: {result.demo_documents || 0} dokumen, {result.demo_reports || 0} laporan, {result.demo_approvals || 0} approval, dan {result.demo_communications || 0} komunikasi.
@@ -194,14 +207,13 @@ export default function InitialSetupPage() {
                 {result.generated_accounts && result.generated_accounts.length > 0 && (
                   <div className="mt-4 overflow-x-auto rounded-lg border border-emerald-200 bg-white">
                     <table className="w-full min-w-[640px] text-left text-xs">
-                      <thead className="bg-emerald-50 text-emerald-900"><tr>{['Akun', 'Role', 'Task', 'Password awal'].map((item) => <th key={item} className="px-3 py-2">{item}</th>)}</tr></thead>
+                      <thead className="bg-emerald-50 text-emerald-900"><tr>{['Akun demo', 'Role', 'Task'].map((item) => <th key={item} className="px-3 py-2">{item}</th>)}</tr></thead>
                       <tbody className="divide-y divide-emerald-100">
                         {result.generated_accounts.map((account) => (
                           <tr key={account.email}>
                             <td className="px-3 py-2 font-medium text-slate-800">{account.email}</td>
                             <td className="px-3 py-2 text-slate-600">{account.role} / {account.project_role_label || account.project_role}{account.can_be_task_pic === false ? ' (reviewer)' : ''}</td>
                             <td className="px-3 py-2 text-slate-600">{result.assignment_counts?.[account.role] || 0}</td>
-                            <td className="px-3 py-2 font-mono text-slate-700">{account.temporary_password || 'Tidak diubah'}</td>
                           </tr>
                         ))}
                       </tbody>

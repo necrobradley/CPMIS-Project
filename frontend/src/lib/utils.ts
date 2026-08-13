@@ -64,7 +64,8 @@ export const PRIORITY_LABELS: Record<string, string> = {
 }
 
 export const ROLE_LABELS: Record<string, string> = {
-  admin:          'Admin Aplikasi',
+  owner:          'Admin Owner',
+  admin:          'Admin Proyek',
   director:       'Direktur',
   manager:        'Manajer',
   staff:          'Staff',
@@ -72,9 +73,15 @@ export const ROLE_LABELS: Record<string, string> = {
 }
 
 export const ROLE_PERSONAS: Record<string, { title: string; cue: string; gradient: string; badge: string }> = {
+  owner: {
+    title: 'Platform Owner',
+    cue: 'Mengatur tenant, paket, entitlement fitur per proyek, dan governance platform.',
+    gradient: 'from-slate-950 via-cyan-800 to-blue-700',
+    badge: 'bg-slate-100 text-slate-800 border-slate-200',
+  },
   admin: {
-    title: 'System Owner',
-    cue: 'Mengatur tenant, menu, akun, keamanan, dan konfigurasi aplikasi.',
+    title: 'Project Administrator',
+    cue: 'Mengelola satu proyek, akun tim, struktur role, data awal, dan integrasi operasional.',
     gradient: 'from-slate-800 via-cyan-700 to-emerald-600',
     badge: 'bg-cyan-50 text-cyan-700 border-cyan-100',
   },

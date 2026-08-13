@@ -44,6 +44,7 @@ from app.schemas.schemas import (
     DigitalTwinRuleCreate,
 )
 from app.services.digital_twin import import_dataset
+from app.services.feature_flags import bootstrap_project_feature_entitlements
 from app.services.project_staffing import (
     seed_ai_role_coverage_tasks,
     upsert_full_project_roster,
@@ -165,9 +166,14 @@ def _upsert_core_project(
             password_hash=get_password_hash(admin_password),
             role=UserRole.ADMIN,
             is_active=True,
+            email_verified_at=None,
+            email_verification_required=True,
+            must_set_password=False,
         )
         db.add(owner)
         db.flush()
+    elif owner.role != UserRole.ADMIN:
+        raise ValueError("Email setup sudah digunakan oleh akun yang bukan Admin Proyek")
     elif admin_password:
         # The bootstrap secret authorizes repairing an existing demo account.
         # Authenticated dataset re-imports pass an empty password and therefore
@@ -178,9 +184,18 @@ def _upsert_core_project(
 
     project = db.query(Project).filter(Project.project_name == project_name).first()
     if not project:
+        existing_admin_project = db.query(ProjectMembership).filter(
+            ProjectMembership.user_id == owner.id,
+            ProjectMembership.project_role == "project_admin",
+            ProjectMembership.is_active == True,
+        ).first()
+        if existing_admin_project:
+            raise ValueError("Satu akun Admin Proyek hanya dapat mewakili satu proyek")
         project = Project(project_name=project_name, owner_id=owner.id)
         db.add(project)
         db.flush()
+    elif project.owner_id != owner.id:
+        raise ValueError("Proyek ini sudah memiliki Admin Proyek yang berbeda")
     project.description = (
         "Paket data proyek untuk AI CPMIS, Digital Twin, pengendalian proyek, "
         "dan pelaporan terintegrasi web/Telegram."
@@ -269,7 +284,8 @@ def _upsert_core_project(
             raise ValueError("Telegram ID sudah dipakai oleh user lain")
         field_user.telegram_id = telegram_id
 
-    _upsert_membership(db, project, owner, division, "project_manager")
+    _upsert_membership(db, project, owner, division, "project_admin")
+    bootstrap_project_feature_entitlements(db, project, owner.id)
     db.flush()
     return owner, role_users, project_role_users, project, division, owner_created, generated_accounts
 
@@ -348,8 +364,8 @@ def _upsert_tasks(
         task.deadline = _parse_date(activity.get("early_finish"))
         task.progress_percent = float(activity.get("progress_pct") or 0)
         task.approval_status = ApprovalStatus.APPROVED.value
-        task.ai_generated = True
-        task.ai_source = "Paket data proyek terhubung"
+        task.ai_generated = False
+        task.ai_source = "Dataset terstruktur hasil impor"
 
         specification = task.specification
         specification.wbs_code = wbs_code

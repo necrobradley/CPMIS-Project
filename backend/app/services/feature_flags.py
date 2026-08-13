@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.models.user import FeatureFlag
+from app.models.user import FeatureFlag, Project, ProjectFeatureEntitlement
 
 
 DEFAULT_FEATURE_FLAGS = [
@@ -182,3 +182,31 @@ def bootstrap_feature_flags(db: Session) -> None:
             continue
         db.add(FeatureFlag(**config))
     db.commit()
+
+
+def bootstrap_project_feature_entitlements(
+    db: Session,
+    project: Project,
+    updated_by: int | None = None,
+) -> list[ProjectFeatureEntitlement]:
+    """Ensure every catalog feature has an explicit choice for one project."""
+    existing = {
+        item.feature_key: item
+        for item in db.query(ProjectFeatureEntitlement).filter(
+            ProjectFeatureEntitlement.project_id == project.id,
+        ).all()
+    }
+    flags = db.query(FeatureFlag).order_by(FeatureFlag.category, FeatureFlag.label).all()
+    for flag in flags:
+        if flag.feature_key in existing:
+            continue
+        entitlement = ProjectFeatureEntitlement(
+            project_id=project.id,
+            feature_key=flag.feature_key,
+            enabled=flag.enabled,
+            updated_by=updated_by,
+        )
+        db.add(entitlement)
+        existing[flag.feature_key] = entitlement
+    db.flush()
+    return [existing[flag.feature_key] for flag in flags]

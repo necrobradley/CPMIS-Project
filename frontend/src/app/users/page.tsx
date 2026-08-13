@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { projectsApi, usersApi } from '@/lib/api'
@@ -9,6 +9,7 @@ import UserAvatar from '@/components/ui/UserAvatar'
 import {
   Building2, CheckCircle2, FileSpreadsheet, FolderKanban, KeyRound, Loader2, Mail,
   MessageCircle, Phone, Plus, Shield, Upload, UserPlus, Users,
+  RefreshCw,
 } from 'lucide-react'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -19,12 +20,11 @@ const ROLE_COLORS: Record<string, string> = {
   subcontractor: 'badge-warning',
 }
 
-const ROLE_OPTIONS: UserRole[] = ['admin', 'director', 'manager', 'staff', 'subcontractor']
+const ROLE_OPTIONS: UserRole[] = ['director', 'manager', 'staff', 'subcontractor']
 const PROJECT_ADMIN_ROLE_CODES = new Set(['project_admin'])
 const EMPTY_SETUP_FORM = {
   name: '',
   email: '',
-  password: 'dummy1234',
   role: 'staff' as UserRole,
   phone: '',
   telegram_id: '',
@@ -58,6 +58,11 @@ export default function UsersPage() {
     queryKey: ['projects'],
     queryFn: async () => (await projectsApi.list()).data,
   })
+  useEffect(() => {
+    if (!setupForm.project_id && projects[0]) {
+      setSetupForm((current) => ({ ...current, project_id: String(projects[0].id) }))
+    }
+  }, [projects, setupForm.project_id])
   const selectedProjectId = setupForm.project_id ? Number(setupForm.project_id) : undefined
   const { data: divisions = [] } = useQuery<Division[]>({
     queryKey: ['project-divisions', selectedProjectId],
@@ -80,15 +85,14 @@ export default function UsersPage() {
     () => users.find((user) => user.id === Number(selectedUserId)),
     [selectedUserId, users]
   )
+  const manageableUsers = users.filter((user) => user.role !== 'admin' && user.role !== 'owner')
   const roleOptions = useMemo(() => {
-    const availableRoles = setupForm.role === 'admin'
-      ? roleCatalog.filter((role) => !PROJECT_ADMIN_ROLE_CODES.has(role.code))
-      : roleCatalog
+    const availableRoles = roleCatalog.filter((role) => !PROJECT_ADMIN_ROLE_CODES.has(role.code))
     if (!selectedProjectId) return availableRoles
     if (!rolePolicy.length) return availableRoles
     const enabled = new Set(rolePolicy.filter((role) => role.enabled).map((role) => role.code))
     return availableRoles.filter((role) => enabled.has(role.code))
-  }, [roleCatalog, rolePolicy, selectedProjectId, setupForm.role])
+  }, [roleCatalog, rolePolicy, selectedProjectId])
   const effectiveProjectRoleCode = useMemo(() => {
     if (!selectedProjectId) return setupForm.project_role
     if (roleOptions.some((role) => role.code === setupForm.project_role)) return setupForm.project_role
@@ -101,7 +105,6 @@ export default function UsersPage() {
     mutationFn: () => usersApi.setup({
       name: setupForm.name.trim(),
       email: setupForm.email.trim(),
-      password: setupForm.password,
       role: setupForm.role,
       phone: setupForm.phone.trim() || null,
       telegram_id: setupForm.telegram_id.trim() || null,
@@ -109,12 +112,12 @@ export default function UsersPage() {
       project_division_id: setupForm.project_division_id ? Number(setupForm.project_division_id) : null,
       project_role: effectiveProjectRoleCode,
     }),
-    onSuccess: () => {
+    onSuccess: (response) => {
       qc.invalidateQueries({ queryKey: ['users'] })
       if (selectedProjectId) qc.invalidateQueries({ queryKey: ['project-members', selectedProjectId] })
-      setSetupForm({ ...EMPTY_SETUP_FORM })
+      setSetupForm({ ...EMPTY_SETUP_FORM, project_id: projects[0] ? String(projects[0].id) : '' })
       setShowSetup(false)
-      toast.success('Akun dummy dan assignment proyek dibuat')
+      toast.success(response.data.invitation_sent ? 'Akun dibuat dan undangan email terkirim' : 'Akun dibuat; email perlu dikirim ulang setelah layanan email aktif')
     },
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Gagal membuat setup akun'),
@@ -151,11 +154,17 @@ export default function UsersPage() {
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Gagal import daftar pegawai'),
   })
+  const resendInvitation = useMutation({
+    mutationFn: (userId: number) => usersApi.resendInvitation(userId),
+    onSuccess: (response) => toast.success(response.data.message),
+    onError: (error: { response?: { data?: { detail?: string } } }) =>
+      toast.error(error.response?.data?.detail || 'Undangan belum dapat dikirim ulang'),
+  })
 
   function resetSetupForm(mode: SetupMode = setupMode) {
     setSetupMode(mode)
     setSelectedUserId('')
-    setSetupForm({ ...EMPTY_SETUP_FORM })
+    setSetupForm({ ...EMPTY_SETUP_FORM, project_id: projects[0] ? String(projects[0].id) : '' })
   }
 
   function selectExistingUser(userId: string) {
@@ -164,6 +173,7 @@ export default function UsersPage() {
     if (!user) return
     setSetupForm({
       ...EMPTY_SETUP_FORM,
+      project_id: projects[0] ? String(projects[0].id) : '',
       name: user.name,
       email: user.email || '',
       role: user.role,
@@ -174,8 +184,8 @@ export default function UsersPage() {
 
   function submitSetup(event: React.FormEvent) {
     event.preventDefault()
-    if (setupMode === 'new' && (!setupForm.name.trim() || !setupForm.email.trim() || setupForm.password.length < 8)) {
-      toast.error('Nama, email, dan password minimal 8 karakter wajib diisi')
+    if (setupMode === 'new' && (!setupForm.name.trim() || !setupForm.email.trim())) {
+      toast.error('Nama dan email wajib diisi')
       return
     }
     if (setupMode === 'existing' && !selectedUserId) {
@@ -208,7 +218,7 @@ export default function UsersPage() {
       <div className="page-header">
           <div>
             <h1 className="page-title">Pengguna</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{users.length} pengguna terdaftar. Admin aplikasi membuat akun, RBAC global, dan admin proyek dari sini.</p>
+          <p className="text-sm text-slate-500 mt-0.5">{users.length} pengguna terdaftar pada {projects[0]?.project_name || 'proyek ini'}. Admin Proyek membuat dan mengatur akun tim dari sini.</p>
         </div>
         <button type="button" onClick={() => setShowSetup((value) => !value)} className="btn-primary">
           <UserPlus size={16} /> Setup Akun
@@ -242,7 +252,7 @@ export default function UsersPage() {
             </div>
             <div>
               <h2 className="font-semibold text-slate-900">Import daftar pegawai</h2>
-              <p className="mt-1 text-xs text-slate-500">Upload CSV dari HR untuk membuat akun internal secara massal. Kolom: name,email,role,phone,telegram_id,password,project_id,project_division_id,project_role.</p>
+              <p className="mt-1 text-xs text-slate-500">Upload CSV untuk membuat akun tim secara massal. Semua akun dibatasi ke proyek Admin ini. Kolom: name,email,role,phone,telegram_id,project_division_id,project_role.</p>
             </div>
           </div>
         </div>
@@ -260,22 +270,21 @@ export default function UsersPage() {
         </form>
         <div className="px-5 pb-5">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-            Jika kolom password kosong, sistem membuat temporary password otomatis. Simpan hasil import sebelum halaman ditutup, lalu minta pegawai mengganti password dari menu Profil Saya.
+            Sistem tidak membuat atau menampilkan password pegawai. Setiap pegawai menerima tautan aktivasi pribadi melalui email untuk menetapkan password sendiri.
           </div>
           {importResults.length > 0 && (
             <div className="mt-4 overflow-x-auto border border-slate-200">
               <table className="min-w-[760px] w-full">
                 <thead className="bg-slate-50">
-                  <tr>{['Row', 'Email', 'Status', 'Role', 'Temporary password', 'Catatan'].map((header) => <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{header}</th>)}</tr>
+                  <tr>{['Row', 'Email', 'Status', 'Role', 'Catatan'].map((header) => <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{header}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {importResults.map((item) => (
                     <tr key={`${item.row}-${item.email}`}>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.row}</td>
                       <td className="px-4 py-3 text-xs font-medium text-slate-800">{item.email}</td>
-                      <td className="px-4 py-3"><span className={item.status === 'created' ? 'badge-success badge' : item.status === 'skipped' ? 'badge-warning badge' : 'badge-danger badge'}>{item.status}</span></td>
+                      <td className="px-4 py-3"><span className={item.status === 'invited' ? 'badge-success badge' : item.status === 'created' || item.status === 'skipped' ? 'badge-warning badge' : 'badge-danger badge'}>{item.status}</span></td>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.role || '-'}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-700">{item.temporary_password || '-'}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.message}</td>
                     </tr>
                   ))}
@@ -295,7 +304,7 @@ export default function UsersPage() {
               </div>
               <div>
                 <h2 className="font-semibold text-slate-900">Wizard setup akun, role, dan proyek</h2>
-                <p className="mt-1 text-xs text-slate-500">Pilih mode akun baru atau akun existing, lalu atur RBAC global, Telegram, divisi, dan role proyek. Role admin proyek hanya dapat dibuat oleh admin aplikasi.</p>
+                <p className="mt-1 text-xs text-slate-500">Pilih mode akun baru atau akun existing, lalu atur Telegram, divisi, dan tanggung jawab proyek. Akun yang dibuat otomatis dibatasi pada proyek ini.</p>
               </div>
             </div>
             <div className="mt-5 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
@@ -327,16 +336,15 @@ export default function UsersPage() {
                     Pilih akun existing
                     <select className="input mt-1" value={selectedUserId} onChange={(event) => selectExistingUser(event.target.value)} required>
                       <option value="">Pilih user yang sudah ada...</option>
-                      {users.map((user) => (
+                      {manageableUsers.map((user) => (
                         <option key={user.id} value={user.id}>{user.name} - {user.email || ROLE_LABELS[user.role]}</option>
                       ))}
                     </select>
                   </label>
                 ) : (
                   <>
-                    <label className="label">Nama<input required className="input mt-1" value={setupForm.name} onChange={(event) => setSetupForm({ ...setupForm, name: event.target.value })} placeholder="Nama staff dummy" /></label>
-                    <label className="label">Email<input required type="email" className="input mt-1" value={setupForm.email} onChange={(event) => setSetupForm({ ...setupForm, email: event.target.value })} placeholder="staff.demo@cpmis.id" /></label>
-                    <label className="label">Password dummy<input required className="input mt-1" value={setupForm.password} onChange={(event) => setSetupForm({ ...setupForm, password: event.target.value })} /></label>
+                    <label className="label">Nama<input required className="input mt-1" value={setupForm.name} onChange={(event) => setSetupForm({ ...setupForm, name: event.target.value })} placeholder="Nama lengkap pegawai" /></label>
+                    <label className="label">Email perusahaan<input required type="email" className="input mt-1" value={setupForm.email} onChange={(event) => setSetupForm({ ...setupForm, email: event.target.value })} placeholder="pegawai@perusahaan.id" /></label>
                   </>
                 )}
                 <label className="label">Role aplikasi / organisasi<select className="input mt-1" value={setupForm.role} onChange={(event) => setSetupForm({ ...setupForm, role: event.target.value as UserRole })}>{ROLE_OPTIONS.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}</select></label>
@@ -355,24 +363,19 @@ export default function UsersPage() {
                 <FolderKanban size={13} /> Assignment proyek
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="label md:col-span-2">Proyek<select className="input mt-1" value={setupForm.project_id} onChange={(event) => setSetupForm({ ...setupForm, project_id: event.target.value, project_division_id: '', project_role: 'staff' })}><option value="">Tanpa assignment proyek dulu</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_name}</option>)}</select></label>
+                <label className="label md:col-span-2">Proyek<select className="input mt-1" value={setupForm.project_id} disabled>{projects.map((project) => <option key={project.id} value={project.id}>{project.project_name}</option>)}</select></label>
                 <label className="label">Divisi proyek<select className="input mt-1" value={setupForm.project_division_id} onChange={(event) => setSetupForm({ ...setupForm, project_division_id: event.target.value })} disabled={!selectedProjectId}><option value="">{requiresDivision ? 'Pilih divisi...' : 'Tanpa divisi'}</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.division_name}</option>)}</select></label>
                 <label className="label">Role proyek / penugasan<select className="input mt-1" value={effectiveProjectRoleCode} onChange={(event) => setSetupForm({ ...setupForm, project_role: event.target.value })} disabled={!selectedProjectId}>{roleOptions.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}</select></label>
               </div>
-              {setupForm.role === 'admin' && selectedProjectId && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                  Admin Aplikasi tidak dirangkap sebagai Admin Proyek. Gunakan role proyek khusus Admin Proyek untuk personel yang mengelola administrasi proyek.
-                </div>
-              )}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="badge-info"><Building2 size={12} /> {selectedProjectId ? 'Assignment aktif' : 'Akun saja'}</span>
+                  <span className="badge-info"><Building2 size={12} /> Assignment proyek aktif</span>
                   {selectedProjectRole && <span className="badge-gray">{selectedProjectRole.can_be_task_pic ? 'Bisa jadi PIC task' : 'Stakeholder/reviewer'}</span>}
                   {requiresDivision && <span className="badge-warning">Wajib divisi</span>}
                 </div>
                 <p className="mt-3 text-xs leading-5 text-slate-500">
                   {setupMode === 'new'
-                    ? 'Akun baru langsung mengikuti RBAC global. Bila proyek dipilih, sistem juga membuat membership proyek agar user muncul di assignment task, laporan, dan komunikasi proyek.'
+                    ? 'Akun baru menerima undangan aktivasi melalui email. Setelah menetapkan password, user mengikuti RBAC global dan assignment proyek yang dipilih.'
                     : 'Mode existing tidak membuat akun baru. Sistem memperbarui RBAC global dan mengaktifkan atau mengubah membership proyek untuk user yang dipilih.'}
                 </p>
               </div>
@@ -397,7 +400,7 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {['Pengguna', 'Role', 'Kontak', 'Telegram', 'Status', 'Bergabung'].map((h) => (
+                  {['Pengguna', 'Role', 'Kontak', 'Telegram', 'Verifikasi', 'Status', 'Bergabung'].map((h) => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                       {h}
                     </th>
@@ -407,6 +410,18 @@ export default function UsersPage() {
               <tbody className="divide-y divide-slate-50">
                 {users.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50 transition">
+                    <td className="px-5 py-4">
+                      {u.must_set_password ? (
+                        <div className="space-y-2">
+                          <span className="badge-warning badge">Menunggu aktivasi</span>
+                          <button type="button" disabled={resendInvitation.isPending} onClick={() => resendInvitation.mutate(u.id)} className="flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700"><RefreshCw size={11} /> Kirim ulang</button>
+                        </div>
+                      ) : u.email_verified_at || !u.email_verification_required ? (
+                        <span className="badge-success badge">Terverifikasi</span>
+                      ) : (
+                        <span className="badge-warning badge">Belum verifikasi</span>
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <UserAvatar user={u} size="md" />

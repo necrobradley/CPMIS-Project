@@ -6,7 +6,22 @@ Akun manusia yang dapat masuk ke aplikasi. Satu user memiliki satu role aplikasi
 
 ## Role aplikasi
 
-Tingkat akses umum pada aplikasi: admin, director, manager, staff, atau subcontractor. Role ini tidak menjelaskan keahlian atau jabatan orang pada proyek tertentu.
+Tingkat akses umum pada aplikasi: Admin Owner, Admin Proyek, director, manager, staff, atau subcontractor. Role ini tidak menjelaskan keahlian atau jabatan orang pada proyek tertentu.
+
+## Admin Owner
+
+Satu-satunya akun pemilik platform yang mengelola tenant, paket layanan, entitlement per proyek, feature flag, kesiapan layanan, dan reset sistem. Admin Owner tidak membuat akun pegawai atau menjalankan administrasi proyek.
+_Avoid_: Admin aplikasi, super admin, admin proyek
+
+## Admin Proyek
+
+Akun administrator operasional yang mewakili tepat satu proyek dan dapat membuat, mengimpor, serta mengatur akun pengguna pada proyek tersebut. Setiap proyek memiliki tepat satu Admin Proyek; akun ini tidak dapat mengelola tenant, paket, entitlement, feature flag, kesiapan layanan, atau reset sistem.
+_Avoid_: Admin Owner, project role `project_admin`
+
+## Entitlement fitur proyek
+
+Pilihan fitur aktif untuk satu proyek yang ditetapkan oleh Admin Owner. Entitlement ini menentukan menu dan kapabilitas yang tersedia bagi Admin Proyek dan anggota proyek tersebut.
+_Avoid_: Feature flag global, hak akses role
 
 ## Role proyek
 
@@ -27,3 +42,18 @@ Role proyek yang disarankan model berdasarkan isi task. Model tidak memilih user
 ## Task demo AI
 
 Task dummy yang diberi penanda AI untuk memperlihatkan coverage role pada presentasi. Task ini disiapkan oleh paket demo dan dibedakan dari task yang benar-benar dihasilkan melalui panggilan model online.
+
+## Dataset terstruktur
+
+Data proyek yang sudah dinormalisasi menjadi JSON atau JSONL dan siap dipetakan secara deterministik menjadi proyek, akun, WBS, task, graph, rule, dan contoh reasoning. Import dataset terstruktur bukan panggilan model AI.
+_Avoid_: Dokumen sumber, hasil generate Nemotron
+
+## Dokumen sumber
+
+Berkas asli proyek seperti PDF, DOCX, dan XLSX yang menjadi bukti atau konteks proyek. Dokumen sumber disimpan di Pusat Dokumen; format yang didukung dapat dianalisis model AI secara terpisah dan hasilnya dicatat pada dokumen.
+_Avoid_: Dataset terstruktur, knowledge graph
+
+## Analisis AI dokumen
+
+Panggilan model online terhadap satu dokumen sumber yang tersimpan. Proses ini menghasilkan analisis yang dapat ditinjau dan, setelah persetujuan, digunakan sebagai calon perubahan task atau data proyek.
+_Avoid_: Import dataset, parsing ZIP

@@ -76,13 +76,16 @@ def _ensure_report_access(user: User, report: DailyReport) -> None:
         raise HTTPException(status_code=403, detail="Laporan tidak tersedia untuk akun ini")
 
 
-def _get_manager_telegram_ids(db: Session) -> list:
+def _get_manager_telegram_ids(db: Session, task: Task) -> list:
     managers = db.query(User).filter(
         User.role.in_([UserRole.MANAGER, UserRole.DIRECTOR, UserRole.ADMIN]),
         User.is_active == True,
         User.telegram_id != None,
     ).all()
-    return [item.telegram_id for item in managers if item.telegram_id]
+    return [
+        item.telegram_id for item in managers
+        if item.telegram_id and can_access_task(item, task)
+    ]
 
 
 def _notify_reviewers(db: Session, report: DailyReport) -> None:
@@ -91,6 +94,8 @@ def _notify_reviewers(db: Session, report: DailyReport) -> None:
         User.is_active == True,
     ).all()
     for reviewer in reviewers:
+        if not can_access_task(reviewer, report.workflow.task):
+            continue
         db.add(Notification(
             user_id=reviewer.id,
             title="Laporan siap ditinjau",
@@ -164,9 +169,9 @@ def list_reports(
     if current_user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR):
         query = query.filter(DailyReport.user_id == current_user.id)
     reports = query.order_by(DailyReport.report_date.desc()).all()
-    if current_user.role in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if current_user.role == UserRole.DIRECTOR:
         return reports
-    if current_user.role == UserRole.MANAGER:
+    if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
         return [item for item in reports if can_access_task(current_user, item.workflow.task)]
     return reports
 
@@ -465,7 +470,7 @@ async def submit_report(
             project_name=report.project.project_name,
             reporter_name=current_user.name,
             reporter_telegram_id=current_user.telegram_id,
-            manager_telegram_ids=_get_manager_telegram_ids(db),
+            manager_telegram_ids=_get_manager_telegram_ids(db, report.workflow.task),
             report_text=report.report_text,
             ai_summary=report.ai_summary,
             ai_risks=report.ai_risks,
@@ -548,7 +553,10 @@ def delete_report(
     current_user: User = Depends(get_current_user),
 ):
     report = _get_report(db, report_id)
-    if report.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+    if report.user_id != current_user.id and (
+        current_user.role != UserRole.ADMIN
+        or not can_access_task(current_user, report.workflow.task)
+    ):
         raise HTTPException(status_code=403, detail="Akses ditolak")
     if report.workflow.status not in (ReportStatus.DRAFT, ReportStatus.NEEDS_REVISION):
         raise HTTPException(status_code=409, detail="Laporan yang sedang direview tidak dapat dihapus")

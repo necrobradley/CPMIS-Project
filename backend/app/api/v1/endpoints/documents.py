@@ -26,7 +26,7 @@ from app.services import document_rag
 from app.services.n8n_service import n8n_service
 from app.services.audit_service import log_audit
 from app.services.document_sync import apply_sync_plan, build_sync_plan
-from app.services.report_workflow import ensure_project_access
+from app.services.report_workflow import can_access_project, ensure_project_access
 from app.services.safety_guard import check_ai_output, check_user_question, refusal_message
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -154,6 +154,7 @@ async def upload_document(
     ai_analysis_supported = file.content_type in (
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     ai_analysis_requested = analyze_with_ai and ai_analysis_supported
     ai_analysis_complete = False
@@ -455,7 +456,7 @@ def request_document_sync_approval(
     session = db.query(DocumentSyncSession).filter(DocumentSyncSession.id == sync_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Sesi sinkronisasi tidak ditemukan")
-    _project_for_user(db, session.project_id, current_user)
+    project = _project_for_user(db, session.project_id, current_user)
     if session.status != DocumentSyncStatus.DRAFT:
         raise HTTPException(status_code=409, detail="Sesi sinkronisasi sudah diajukan atau diproses")
     plan = json.loads(session.plan_json)
@@ -468,6 +469,8 @@ def request_document_sync_approval(
         approver = db.query(User).filter(User.id == payload.approver_id, User.is_active == True).first()
         if not approver or approver.role not in (UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER):
             raise HTTPException(status_code=422, detail="Approver harus manager, director, atau admin aktif")
+        if not can_access_project(approver, project):
+            raise HTTPException(status_code=422, detail="Approver tidak memiliki akses ke proyek ini")
 
     approval = ApprovalRequest(
         project_id=session.project_id,
@@ -492,6 +495,8 @@ def request_document_sync_approval(
         User.role.in_([UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER]),
     ).all()
     for reviewer in reviewers:
+        if not can_access_project(reviewer, project):
+            continue
         if payload.approver_id and reviewer.id != payload.approver_id:
             continue
         db.add(Notification(

@@ -582,10 +582,12 @@ export default function TasksPage() {
                       className="cursor-pointer rounded-lg bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover"
                     >
                       {/* AI badge */}
-                      {task.ai_generated && (
+                      {(task.ai_generated || task.ai_source?.toLowerCase().includes('dataset terstruktur')) && (
                         <div className="flex items-center gap-1 mb-2">
                           <Bot size={11} className="text-violet-500" />
-                          <span className="text-xs text-violet-500 font-medium">AI Generated</span>
+                          <span className="text-xs text-violet-500 font-medium">
+                            {task.ai_source?.toLowerCase().includes('dataset terstruktur') ? 'Dataset Import' : 'AI Generated'}
+                          </span>
                         </div>
                       )}
 
@@ -802,7 +804,9 @@ export default function TasksPage() {
                       <dd className="mt-1 text-sm text-slate-800">
                         {selectedTask.specification?.source_document_id
                           ? `Dokumen #${selectedTask.specification.source_document_id}`
-                          : selectedTask.ai_generated ? 'Hasil ekstraksi AI' : 'Input manual'}
+                          : selectedTask.ai_source?.toLowerCase().includes('dataset terstruktur')
+                            ? 'Dataset terstruktur (impor)'
+                            : selectedTask.ai_generated ? 'Hasil ekstraksi AI' : 'Input manual'}
                       </dd>
                     </div>
                   </div>

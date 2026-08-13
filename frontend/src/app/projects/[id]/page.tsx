@@ -151,13 +151,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ? rolePolicy
     : roleCatalog.map((role) => ({ ...role, project_id: projectId, enabled: true }))
   const assignableRoleCatalog = roleCatalogWithPolicy.filter((role) => (
-    role.enabled && (isAppAdmin || !PROJECT_ADMIN_ROLE_CODES.has(role.code))
+    role.enabled && !PROJECT_ADMIN_ROLE_CODES.has(role.code)
   ))
   const selectedRoleCode = assignableRoleCatalog.some((role) => role.code === memberForm.project_role)
     ? memberForm.project_role
     : assignableRoleCatalog[0]?.code || memberForm.project_role
   const rolesForMember = (currentRole: string) => {
-    if (!isAppAdmin && PROJECT_ADMIN_ROLE_CODES.has(currentRole)) {
+    if (PROJECT_ADMIN_ROLE_CODES.has(currentRole)) {
       return roleCatalogWithPolicy.filter((role) => role.code === currentRole)
     }
     if (assignableRoleCatalog.some((role) => role.code === currentRole)) return assignableRoleCatalog
@@ -608,7 +608,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <h3 className="text-sm font-semibold text-amber-900">Struktur admin proyek dikunci</h3>
                     <p className="mt-1 text-xs leading-5 text-amber-800">
-                      Manager dapat menempatkan staff operasional. Pembuatan Project Manager, Deputy PM, Sponsor, Owner Rep, dan perubahan policy role dilakukan dari akun admin aplikasi.
+                      Manager dapat menempatkan staff operasional. Pembuatan Project Manager, Deputy PM, Sponsor, Owner Rep, dan perubahan policy role dilakukan oleh Admin Proyek.
                     </p>
                   </div>
                 </div>
@@ -657,7 +657,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <tbody className="divide-y divide-slate-100">
                       {members.map((member) => {
                         const isProjectAdminMember = PROJECT_ADMIN_ROLE_CODES.has(member.project_role)
-                        const canEditMember = isAppAdmin || !isProjectAdminMember
+                        const canEditMember = !isProjectAdminMember && canManage
                         return (
                           <tr key={member.id}>
                             <td className="px-4 py-3">
@@ -695,7 +695,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 onClick={() => removeMember.mutate(member.id)}
                                 disabled={!canEditMember}
                                 className="btn-ghost p-2 text-rose-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                                title={canEditMember ? 'Keluarkan dari proyek' : 'Hanya admin aplikasi yang dapat mengubah admin proyek'}
+                                title={canEditMember ? 'Keluarkan dari proyek' : 'Admin Proyek utama dikunci'}
                               >
                                 <Trash2 size={15} />
                               </button>

@@ -20,6 +20,7 @@ from app.models.user import (
 
 PROTECTED_TABLES = {
     "users",
+    "email_action_tokens",
     "feature_flags",
     "tenants",
     "tenant_feature_entitlements",

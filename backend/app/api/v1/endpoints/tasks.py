@@ -162,7 +162,7 @@ def list_tasks(
         query = query.filter(or_(Task.assigned_to == current_user.id, member_access))
 
     tasks = query.order_by(Task.deadline.asc()).all()
-    if current_user.role in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if current_user.role == UserRole.DIRECTOR:
         return tasks
     return [task for task in tasks if can_access_task(current_user, task)]
 

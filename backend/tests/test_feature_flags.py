@@ -15,10 +15,10 @@ def build_database():
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     admin = User(
-        name="System Admin",
-        email="admin-feature@test.local",
+        name="Platform Owner",
+        email="owner-feature@test.local",
         password_hash="x",
-        role=UserRole.ADMIN,
+        role=UserRole.OWNER,
     )
     db.add(admin)
     db.commit()
@@ -42,7 +42,7 @@ def test_bootstrap_feature_flags_creates_core_and_menu_flags():
     assert communications is not None and communications.category == "communication"
 
 
-def test_admin_can_toggle_non_core_feature_and_audit_is_written():
+def test_owner_can_toggle_non_core_feature_and_audit_is_written():
     db, admin = build_database()
     bootstrap_feature_flags(db)
 
