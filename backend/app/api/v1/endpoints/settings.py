@@ -21,9 +21,11 @@ from app.schemas.schemas import (
     CommercialUsageResponse,
     FeatureFlagResponse,
     FeatureFlagUpdate,
+    ProjectPlanResponse,
+    ProjectPlanUpdate,
 )
 from app.services.audit_service import log_audit
-from app.services.feature_flags import bootstrap_project_feature_entitlements
+from app.services.feature_flags import apply_project_plan_entitlements, bootstrap_project_feature_entitlements
 from app.services.report_workflow import can_access_project
 from app.services.commercial import (
     USAGE_METRICS,
@@ -179,6 +181,47 @@ def update_project_feature(
         "updated_by": entitlement.updated_by,
         "created_at": flag.created_at,
         "updated_at": entitlement.updated_at,
+    }
+
+
+@router.patch("/projects/{project_id}/plan", response_model=ProjectPlanResponse)
+def apply_project_plan(
+    project_id: int,
+    data: ProjectPlanUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
+
+    previous_plan = project.plan_key
+    enabled_count, total_count = apply_project_plan_entitlements(
+        db,
+        project,
+        data.plan_key,
+        current_user.id,
+    )
+    plan = serialize_plan(data.plan_key)
+    log_audit(
+        db,
+        actor_id=current_user.id,
+        action="settings.project_plan_applied",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        summary=f"Paket {plan['name']} diterapkan pada proyek {project.project_name}",
+        before={"plan_key": previous_plan},
+        after={"plan_key": data.plan_key, "enabled_features": enabled_count},
+    )
+    db.commit()
+    return {
+        "project_id": project.id,
+        "project_name": project.project_name,
+        "plan_key": data.plan_key,
+        "plan_name": plan["name"],
+        "enabled_features": enabled_count,
+        "total_features": total_count,
     }
 
 

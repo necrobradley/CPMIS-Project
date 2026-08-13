@@ -125,8 +125,8 @@ export const reportsApi = {
 
 // Construction Project Controls
 export const controlsApi = {
-  myWork: () => api.get('/controls/my-work'),
-  summary: (projectId: number) => api.get(`/controls/projects/${projectId}/summary`),
+  myWork: () => api.get('/controls/my-work', { timeout: 20_000 }),
+  summary: (projectId: number) => api.get(`/controls/projects/${projectId}/summary`, { timeout: 20_000 }),
   vendors: (projectId: number) => api.get(`/controls/projects/${projectId}/vendors`),
   createVendor: (projectId: number, data: Record<string, unknown>) =>
     api.post(`/controls/projects/${projectId}/vendors`, data),
@@ -164,6 +164,12 @@ export const usersApi = {
   setup: (data: Record<string, unknown>) => api.post('/users/setup', data),
   importCsv: (formData: FormData) =>
     api.post('/users/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  previewEmployeeMapping: (formData: FormData) =>
+    api.post('/users/import/ai-preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  commitEmployeeMapping: (rows: Array<Record<string, unknown>>) =>
+    api.post('/users/import/ai-commit', { rows }),
+  credentialsDocument: (data: { current_password: string; confirmation: string }) =>
+    api.post('/users/credentials-document', data, { responseType: 'blob' }),
   updateSetup: (id: number, data: Record<string, unknown>) => api.patch(`/users/${id}/setup`, data),
   resendInvitation: (id: number) => api.post(`/users/${id}/resend-invitation`),
   changeMyPassword: (data: Record<string, unknown>) => api.patch('/users/me/password', data),
@@ -223,6 +229,8 @@ export const settingsApi = {
   projectFeatures: (projectId: number) => api.get(`/settings/projects/${projectId}/features`),
   updateProjectFeature: (projectId: number, featureKey: string, enabled: boolean) =>
     api.patch(`/settings/projects/${projectId}/features/${featureKey}`, { enabled }),
+  applyProjectPlan: (projectId: number, planKey: string) =>
+    api.patch(`/settings/projects/${projectId}/plan`, { plan_key: planKey }),
   commercialPlans: () => api.get('/settings/commercial/plans'),
   commercialReadiness: () => api.get('/settings/commercial/readiness'),
   commercialTenants: () => api.get('/settings/commercial/tenants'),
@@ -285,6 +293,12 @@ export const systemApi = {
     data: { name: string; email: string; password: string },
     bootstrapSecret: string,
   ) => api.post('/system/bootstrap/owner', data, {
+    headers: { 'X-Bootstrap-Secret': bootstrapSecret },
+  }),
+  bootstrapProjectAdmin: (
+    data: { admin_name: string; admin_email: string; password: string; project_name: string; telegram_id?: string },
+    bootstrapSecret: string,
+  ) => api.post('/system/bootstrap/project-admin', data, {
     headers: { 'X-Bootstrap-Secret': bootstrapSecret },
   }),
   bootstrapProjectDataset: (formData: FormData, bootstrapSecret: string) =>

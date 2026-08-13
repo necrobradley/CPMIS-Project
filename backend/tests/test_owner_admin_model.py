@@ -4,10 +4,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.v1.endpoints import system as system_endpoint
-from app.api.v1.endpoints.system import OwnerBootstrapRequest, bootstrap_owner
+from app.api.v1.endpoints.system import (
+    OwnerBootstrapRequest,
+    ProjectAdminBootstrapRequest,
+    bootstrap_owner,
+    bootstrap_project_admin,
+)
 from app.core.config import settings
 from app.db.database import Base
-from app.models.user import User, UserRole
+from app.models.user import Project, ProjectMembership, User, UserRole
 
 
 def build_database():
@@ -57,3 +62,30 @@ def test_owner_is_not_created_without_transactional_email(monkeypatch):
 
     assert exc.value.status_code == 503
     assert db.query(User).filter(User.role == UserRole.OWNER).count() == 0
+
+
+def test_project_admin_setup_creates_exactly_one_empty_project(monkeypatch):
+    db = build_database()
+    monkeypatch.setattr(settings, "BOOTSTRAP_SECRET", "project-bootstrap-secret")
+    monkeypatch.setattr(system_endpoint, "transactional_email_configured", lambda: True)
+    monkeypatch.setattr(system_endpoint, "send_verification_email", lambda user, token: (True, None))
+    payload = ProjectAdminBootstrapRequest(
+        admin_name="Admin Gedung A",
+        admin_email="admin.gedung-a@example.com",
+        password="ProjectPassword123",
+        project_name="Gedung A",
+    )
+
+    created = bootstrap_project_admin(payload, "project-bootstrap-secret", db)
+    admin = db.query(User).filter(User.email == payload.admin_email).one()
+    project = db.query(Project).one()
+    membership = db.query(ProjectMembership).one()
+
+    assert created["project_id"] == project.id
+    assert created["plan_key"] is None
+    assert admin.role == UserRole.ADMIN
+    assert project.owner_id == admin.id
+    assert membership.project_id == project.id
+    assert membership.user_id == admin.id
+    assert membership.project_role == "project_admin"
+    assert db.query(Project).count() == 1

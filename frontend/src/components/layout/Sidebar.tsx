@@ -158,7 +158,7 @@ export default function Sidebar() {
       <div className="border-b border-slate-800 px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-12 min-w-0 flex-1 items-center rounded-xl bg-white px-3 shadow-sm">
-            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="mx-auto h-auto w-full max-w-[170px] object-contain" priority />
           </div>
           <div className="ml-auto">
             <div className="hidden lg:block"><NotificationBell /></div>

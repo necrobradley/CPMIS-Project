@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { projectsApi, usersApi } from '@/lib/api'
@@ -7,9 +8,9 @@ import { Division, Project, ProjectMemberRoleCatalog, ProjectRolePolicy, User, U
 import { ROLE_LABELS, formatDate } from '@/lib/utils'
 import UserAvatar from '@/components/ui/UserAvatar'
 import {
-  Building2, CheckCircle2, FileSpreadsheet, FolderKanban, KeyRound, Loader2, Mail,
+  AlertTriangle, Bot, Building2, CheckCircle2, Download, FileSpreadsheet, FolderKanban, KeyRound, Loader2, Mail,
   MessageCircle, Phone, Plus, Shield, Upload, UserPlus, Users,
-  RefreshCw,
+  RefreshCw, X,
 } from 'lucide-react'
 
 const ROLE_COLORS: Record<string, string> = {
@@ -41,6 +42,30 @@ type ImportResult = {
   temporary_password?: string
   role?: string
 }
+type AIImportRow = {
+  row: number
+  name: string
+  email: string
+  position: string
+  role: UserRole
+  division_name: string
+  project_role: string
+  project_role_label: string
+  confidence: number
+  reasoning: string
+  mapping_source: 'ai' | 'system_fallback'
+  existing_account: boolean
+}
+type AIMappingPreview = {
+  rows: AIImportRow[]
+  total: number
+  fallback_count: number
+  accounts_created: number
+  ai_provider: string
+  ai_model: string
+  ai_status: 'success' | 'fallback'
+  ai_error?: string | null
+}
 
 export default function UsersPage() {
   const qc = useQueryClient()
@@ -50,6 +75,11 @@ export default function UsersPage() {
   const [setupForm, setSetupForm] = useState({ ...EMPTY_SETUP_FORM })
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResults, setImportResults] = useState<ImportResult[]>([])
+  const [aiMappedRows, setAiMappedRows] = useState<AIImportRow[]>([])
+  const [aiMappingInfo, setAiMappingInfo] = useState<Pick<AIMappingPreview, 'ai_provider' | 'ai_model' | 'fallback_count' | 'ai_status' | 'ai_error'> | null>(null)
+  const [credentialDialogOpen, setCredentialDialogOpen] = useState(false)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [credentialConfirmation, setCredentialConfirmation] = useState('')
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: async () => (await usersApi.list()).data,
@@ -58,6 +88,7 @@ export default function UsersPage() {
     queryKey: ['projects'],
     queryFn: async () => (await projectsApi.list()).data,
   })
+  const project = projects[0]
   useEffect(() => {
     if (!setupForm.project_id && projects[0]) {
       setSetupForm((current) => ({ ...current, project_id: String(projects[0].id) }))
@@ -140,25 +171,87 @@ export default function UsersPage() {
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Gagal memperbarui setup akun'),
   })
-  const importUsers = useMutation({
+  const previewEmployeeMapping = useMutation({
     mutationFn: () => {
       const formData = new FormData()
       if (importFile) formData.append('file', importFile)
-      return usersApi.importCsv(formData)
+      return usersApi.previewEmployeeMapping(formData)
     },
+    onSuccess: (response: { data: AIMappingPreview }) => {
+      setAiMappedRows(response.data.rows || [])
+      setAiMappingInfo({
+        ai_provider: response.data.ai_provider,
+        ai_model: response.data.ai_model,
+        fallback_count: response.data.fallback_count,
+        ai_status: response.data.ai_status,
+        ai_error: response.data.ai_error,
+      })
+      setImportResults([])
+      if (response.data.ai_status === 'fallback') {
+        toast.error('Model AI tidak tersedia; hasil fallback sistem ditampilkan untuk review')
+      } else {
+        toast.success(`${response.data.total || 0} posisi selesai dipetakan; belum ada akun yang dibuat`)
+      }
+    },
+    onError: (error: { response?: { data?: { detail?: string } } }) =>
+      toast.error(error.response?.data?.detail || 'AI gagal memetakan posisi pegawai'),
+  })
+  const importUsers = useMutation({
+    mutationFn: () => usersApi.commitEmployeeMapping(
+      aiMappedRows.filter((row) => !row.existing_account)
+    ),
     onSuccess: (response) => {
       qc.invalidateQueries({ queryKey: ['users'] })
       setImportResults(response.data.results || [])
-      toast.success(`${response.data.created || 0} akun dibuat dari CSV`)
+      setAiMappedRows([])
+      setAiMappingInfo(null)
+      setImportFile(null)
+      toast.success(`${response.data.created || 0} akun dibuat dari hasil review AI`)
     },
     onError: (error: { response?: { data?: { detail?: string } } }) =>
-      toast.error(error.response?.data?.detail || 'Gagal import daftar pegawai'),
+      toast.error(error.response?.data?.detail || 'Gagal membuat akun dari hasil review'),
   })
   const resendInvitation = useMutation({
     mutationFn: (userId: number) => usersApi.resendInvitation(userId),
     onSuccess: (response) => toast.success(response.data.message),
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Undangan belum dapat dikirim ulang'),
+  })
+  const downloadCredentials = useMutation({
+    mutationFn: () => usersApi.credentialsDocument({
+      current_password: adminPassword,
+      confirmation: credentialConfirmation.trim(),
+    }),
+    onSuccess: (response) => {
+      const contentDisposition = String(response.headers['content-disposition'] || '')
+      const match = contentDisposition.match(/filename="?([^";]+)"?/i)
+      const fallback = `daftar-akun-password-${project?.project_name || 'proyek'}.docx`.replace(/[^a-z0-9._-]+/gi, '-')
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = match?.[1] || fallback
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+        // Beri browser waktu mengambil Blob sebelum object URL dilepas.
+        window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+      setCredentialDialogOpen(false)
+      setAdminPassword('')
+      setCredentialConfirmation('')
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Dokumen Word diunduh dan password akun sudah diaktifkan')
+    },
+    onError: async (error: { response?: { data?: Blob } }) => {
+      let message = 'Dokumen akun gagal dibuat'
+      const blob = error.response?.data
+      if (blob instanceof Blob) {
+        try {
+          const payload = JSON.parse(await blob.text())
+          message = payload.detail || message
+        } catch { /* gunakan pesan umum */ }
+      }
+      toast.error(message)
+    },
   })
 
   function resetSetupForm(mode: SetupMode = setupMode) {
@@ -210,7 +303,13 @@ export default function UsersPage() {
       toast.error('Pilih file CSV daftar pegawai')
       return
     }
-    importUsers.mutate()
+    previewEmployeeMapping.mutate()
+  }
+
+  function updateMappedRow(rowNumber: number, updates: Partial<AIImportRow>) {
+    setAiMappedRows((rows) => rows.map((row) => (
+      row.row === rowNumber ? { ...row, ...updates } : row
+    )))
   }
 
   return (
@@ -220,9 +319,14 @@ export default function UsersPage() {
             <h1 className="page-title">Pengguna</h1>
           <p className="text-sm text-slate-500 mt-0.5">{users.length} pengguna terdaftar pada {projects[0]?.project_name || 'proyek ini'}. Admin Proyek membuat dan mengatur akun tim dari sini.</p>
         </div>
-        <button type="button" onClick={() => setShowSetup((value) => !value)} className="btn-primary">
-          <UserPlus size={16} /> Setup Akun
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setCredentialDialogOpen(true)} disabled={manageableUsers.length === 0} className="btn-secondary">
+            <Download size={16} /> Unduh akun & password
+          </button>
+          <button type="button" onClick={() => setShowSetup((value) => !value)} className="btn-primary">
+            <UserPlus size={16} /> Setup Akun
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -246,13 +350,23 @@ export default function UsersPage() {
 
       <div className="card overflow-hidden">
         <div className="border-b border-slate-100 p-5">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
-              <FileSpreadsheet size={18} />
+                <Bot size={19} />
             </div>
             <div>
-              <h2 className="font-semibold text-slate-900">Import daftar pegawai</h2>
-              <p className="mt-1 text-xs text-slate-500">Upload CSV untuk membuat akun tim secara massal. Semua akun dibatasi ke proyek Admin ini. Kolom: name,email,role,phone,telegram_id,project_division_id,project_role.</p>
+                <h2 className="font-semibold text-slate-900">Pemetaan posisi dan pembuatan akun dengan AI</h2>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Isi hanya nama, email, dan posisi. AI memetakan posisi ke role proyek dan divisi; sistem menentukan hak akses. Admin meninjau hasilnya sebelum akun dibuat.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs font-semibold">
+              <a href="/templates/Template_Import_Pengguna_AI.csv" download className="inline-flex items-center gap-2 text-brand-600 hover:text-brand-700">
+                <Download size={14} /> Unduh template CSV
+              </a>
+              <a href="/templates/Template_Import_Pengguna_AI.xlsx" download className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800">
+                <FileSpreadsheet size={14} /> Unduh contoh Excel
+              </a>
             </div>
           </div>
         </div>
@@ -261,17 +375,93 @@ export default function UsersPage() {
             type="file"
             accept=".csv,text/csv"
             className="input"
-            onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+            onChange={(event) => {
+              setImportFile(event.target.files?.[0] || null)
+              setAiMappedRows([])
+              setAiMappingInfo(null)
+              setImportResults([])
+            }}
           />
-          <button disabled={importUsers.isPending || !importFile} className="btn-primary justify-center">
-            {importUsers.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-            Import CSV
+          <button disabled={previewEmployeeMapping.isPending || !importFile} className="btn-primary justify-center">
+            {previewEmployeeMapping.isPending ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />}
+            {previewEmployeeMapping.isPending ? 'AI sedang memetakan...' : 'Petakan posisi dengan AI'}
           </button>
         </form>
         <div className="px-5 pb-5">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-            Sistem tidak membuat atau menampilkan password pegawai. Setiap pegawai menerima tautan aktivasi pribadi melalui email untuk menetapkan password sendiri.
+          <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
+            Tahap 1 hanya membuat preview. <strong>Tidak ada akun yang dibuat</strong> sampai Anda memeriksa hasil AI dan menekan tombol konfirmasi di bawah tabel.
           </div>
+          {aiMappedRows.length > 0 && (
+            <div className="mt-5 space-y-4">
+              <div className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${aiMappingInfo?.ai_status === 'fallback' ? 'border-amber-300 bg-amber-50' : 'border-violet-200 bg-violet-50'}`}>
+                <div>
+                  <p className={`text-sm font-semibold ${aiMappingInfo?.ai_status === 'fallback' ? 'text-amber-950' : 'text-violet-950'}`}>{aiMappingInfo?.ai_status === 'fallback' ? 'Review pemetaan fallback sistem' : 'Review hasil pemetaan AI'}</p>
+                  <p className={`mt-1 text-xs ${aiMappingInfo?.ai_status === 'fallback' ? 'text-amber-800' : 'text-violet-800'}`}>
+                    Model: {aiMappingInfo?.ai_provider}/{aiMappingInfo?.ai_model} · {aiMappedRows.length} baris · {aiMappingInfo?.fallback_count || 0} fallback sistem
+                  </p>
+                  {aiMappingInfo?.ai_error && <p className="mt-2 max-w-3xl text-xs font-medium text-amber-900">{aiMappingInfo.ai_error}</p>}
+                </div>
+                <button
+                  type="button"
+                  disabled={importUsers.isPending || aiMappedRows.every((row) => row.existing_account)}
+                  onClick={() => importUsers.mutate()}
+                  className="btn-primary justify-center"
+                >
+                  {importUsers.isPending ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  {importUsers.isPending ? 'Membuat akun...' : `Konfirmasi & buat ${aiMappedRows.filter((row) => !row.existing_account).length} akun`}
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-[1180px] w-full">
+                  <thead className="bg-slate-50">
+                    <tr>{['Pengguna', 'Posisi sumber', 'Role proyek hasil AI', 'Divisi', 'Keyakinan', 'Status'].map((header) => <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{header}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {aiMappedRows.map((row) => (
+                      <tr key={`${row.row}-${row.email}`} className={row.existing_account ? 'bg-amber-50/50' : ''}>
+                        <td className="px-4 py-3">
+                          <p className="text-xs font-semibold text-slate-900">{row.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">{row.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-700">{row.position}</td>
+                        <td className="px-4 py-3">
+                          <select
+                            className="input min-w-[220px] text-xs"
+                            value={row.project_role}
+                            disabled={row.existing_account}
+                            onChange={(event) => {
+                              const selected = roleOptions.find((role) => role.code === event.target.value)
+                              updateMappedRow(row.row, {
+                                project_role: event.target.value,
+                                project_role_label: selected?.label || event.target.value,
+                              })
+                            }}
+                          >
+                            {roleOptions.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
+                          </select>
+                          <p className="mt-1 text-[11px] text-slate-400" title={row.reasoning}>{row.mapping_source === 'ai' ? 'Dipetakan AI' : 'Fallback sistem'} · akses {row.role}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="input min-w-[180px] text-xs"
+                            value={row.division_name}
+                            disabled={row.existing_account}
+                            onChange={(event) => updateMappedRow(row.row, { division_name: event.target.value })}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`badge ${row.confidence >= 0.8 ? 'badge-success' : row.confidence >= 0.6 ? 'badge-warning' : 'badge-danger'}`}>{Math.round(row.confidence * 100)}%</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {row.existing_account ? <span className="badge badge-warning">Email sudah terdaftar</span> : <span className="badge badge-success">Siap dibuat</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {importResults.length > 0 && (
             <div className="mt-4 overflow-x-auto border border-slate-200">
               <table className="min-w-[760px] w-full">
@@ -292,6 +482,9 @@ export default function UsersPage() {
               </table>
             </div>
           )}
+          <div className="mt-4 text-xs leading-5 text-slate-500">
+            Setelah akun dibuat, gunakan <strong>Unduh akun & password</strong> untuk menghasilkan password login acak dalam dokumen Word.
+          </div>
         </div>
       </div>
 
@@ -400,7 +593,7 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {['Pengguna', 'Role', 'Kontak', 'Telegram', 'Verifikasi', 'Status', 'Bergabung'].map((h) => (
+                  {['Aktivasi', 'Pengguna', 'Role', 'Kontak', 'Telegram', 'Status', 'Bergabung'].map((h) => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                       {h}
                     </th>
@@ -473,6 +666,48 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {credentialDialogOpen && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="credential-document-title">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><AlertTriangle size={21} /></div>
+                <div>
+                  <h2 id="credential-document-title" className="font-bold text-slate-950">Buat dokumen akun dan password</h2>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">Dokumen Word berisi tabel akun proyek dan password acak yang aktif.</p>
+                </div>
+              </div>
+              <button type="button" disabled={downloadCredentials.isPending} onClick={() => setCredentialDialogOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup"><X size={18} /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                Semua password lama anggota proyek akan diganti dan sesi login mereka dihentikan. Simpan dokumen secara rahasia lalu bagikan setiap baris hanya kepada pemilik akun terkait.
+              </div>
+              <div>
+                <label className="label">Password Admin Proyek</label>
+                <input type="password" className="input" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Masukkan password akun Anda" autoComplete="current-password" />
+              </div>
+              <div>
+                <label className="label">Ketik GENERATE PASSWORD</label>
+                <input className="input font-mono" value={credentialConfirmation} onChange={(event) => setCredentialConfirmation(event.target.value)} placeholder="GENERATE PASSWORD" />
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+              <button type="button" disabled={downloadCredentials.isPending} onClick={() => setCredentialDialogOpen(false)} className="btn-secondary justify-center">Batal</button>
+              <button
+                type="button"
+                disabled={downloadCredentials.isPending || adminPassword.length < 8 || credentialConfirmation.trim() !== 'GENERATE PASSWORD'}
+                onClick={() => downloadCredentials.mutate()}
+                className="btn-primary justify-center"
+              >
+                {downloadCredentials.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                {downloadCredentials.isPending ? 'Membuat dokumen...' : 'Rotasi & unduh Word'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
     </div>
   )
 }

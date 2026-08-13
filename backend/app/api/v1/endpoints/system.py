@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings, transactional_email_configured
 from app.core.security import get_password_hash, require_roles, verify_password
 from app.db.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import Project, ProjectMembership, ProjectStatus, User, UserRole
 from app.services.ai_service import AIService
 from app.services.audit_service import log_audit
 from app.services.storage_service import storage_service
 from app.services.system_reset import collect_operational_storage_paths, reset_operational_data
 from app.services.email_auth import VERIFY_EMAIL, issue_email_token, send_verification_email
+from app.services.feature_flags import bootstrap_project_feature_entitlements
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,14 @@ class OwnerBootstrapRequest(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     email: EmailStr
     password: str = Field(min_length=12, max_length=256)
+
+
+class ProjectAdminBootstrapRequest(BaseModel):
+    admin_name: str = Field(min_length=2, max_length=100)
+    admin_email: EmailStr
+    password: str = Field(min_length=12, max_length=256)
+    project_name: str = Field(min_length=2, max_length=200)
+    telegram_id: str | None = Field(default=None, max_length=50)
 
 
 def _require_bootstrap_secret(value: str | None) -> None:
@@ -164,6 +173,83 @@ async def bootstrap_project(
         **result,
         "verification_email_sent": verification_sent,
         "verification_message": verification_message,
+    }
+
+
+@router.post("/bootstrap/project-admin", status_code=201, summary="Buat satu Admin Proyek dan satu proyek kosong")
+def bootstrap_project_admin(
+    payload: ProjectAdminBootstrapRequest,
+    x_bootstrap_secret: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Setup akun dipisahkan dari import dataset dan dokumen proyek."""
+    _require_bootstrap_secret(x_bootstrap_secret)
+    _validate_admin_password(payload.password)
+    if not transactional_email_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Email transaksional belum dikonfigurasi. Admin Proyek tidak dibuat agar akun tidak terkunci.",
+        )
+
+    normalized_email = str(payload.admin_email).strip().lower()
+    project_name = payload.project_name.strip()
+    if db.query(User).filter(User.email == normalized_email).first():
+        raise HTTPException(status_code=409, detail="Email sudah digunakan oleh akun lain")
+    if db.query(Project).filter(Project.project_name == project_name).first():
+        raise HTTPException(status_code=409, detail="Nama proyek sudah terdaftar")
+
+    admin = User(
+        name=payload.admin_name.strip(),
+        email=normalized_email,
+        password_hash=get_password_hash(payload.password),
+        role=UserRole.ADMIN,
+        telegram_id=(payload.telegram_id or "").strip() or None,
+        is_active=True,
+        email_verification_required=True,
+        email_verified_at=None,
+        must_set_password=False,
+    )
+    db.add(admin)
+    db.flush()
+    project = Project(
+        project_name=project_name,
+        owner_id=admin.id,
+        status=ProjectStatus.PLANNING,
+        progress_percent=0,
+        plan_key=None,
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(
+        project_id=project.id,
+        user_id=admin.id,
+        project_role="project_admin",
+        is_active=True,
+    ))
+    bootstrap_project_feature_entitlements(db, project, admin.id)
+    issued = issue_email_token(
+        db,
+        admin,
+        VERIFY_EMAIL,
+        ttl=timedelta(hours=settings.EMAIL_VERIFICATION_TTL_HOURS),
+    )
+    sent, delivery_error = send_verification_email(admin, issued.token)
+    if not sent:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=delivery_error or "Email verifikasi gagal dikirim; Admin Proyek belum dibuat",
+        )
+    db.commit()
+    return {
+        "admin_id": admin.id,
+        "admin_email": admin.email,
+        "project_id": project.id,
+        "project_name": project.project_name,
+        "project_status": project.status,
+        "plan_key": project.plan_key,
+        "verification_email_sent": True,
+        "verification_message": "Email verifikasi Admin Proyek berhasil dikirim",
     }
 
 

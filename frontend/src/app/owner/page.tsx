@@ -6,12 +6,11 @@ import { projectsApi, settingsApi, systemApi } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/api-error'
 import { useAuthStore } from '@/lib/store'
 import {
-  CommercialEntitlement, CommercialPlan, CommercialPlanKey, CommercialReadiness,
-  CommercialTenant, CommercialUsage, FeatureFlag, Project,
+  CommercialPlan, CommercialPlanKey, CommercialReadiness, FeatureFlag, Project,
 } from '@/types'
 import { cn, formatDateTime } from '@/lib/utils'
 import {
-  Activity, AlertTriangle, Building2, CheckCircle2, Loader2, LockKeyhole,
+  Activity, AlertTriangle, CheckCircle2, Loader2, LockKeyhole,
   PackageCheck, Rocket, Search, ShieldCheck, SlidersHorizontal, ToggleLeft, ToggleRight, UserCog,
   Trash2, X,
 } from 'lucide-react'
@@ -42,9 +41,7 @@ export default function OwnerConsolePage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
-  const [newTenantName, setNewTenantName] = useState('')
-  const [newTenantPlan, setNewTenantPlan] = useState<CommercialPlanKey>('professional')
-  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null)
+  const [projectPlanChoices, setProjectPlanChoices] = useState<Record<number, CommercialPlanKey>>({})
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
@@ -88,30 +85,6 @@ export default function OwnerConsolePage() {
     enabled: isOwner,
     retry: false,
   })
-  const { data: commercialTenants = [] } = useQuery<CommercialTenant[]>({
-    queryKey: ['commercial-tenants'],
-    queryFn: async () => (await settingsApi.commercialTenants()).data,
-    enabled: isOwner,
-    retry: false,
-  })
-
-  const selectedTenant = useMemo(() => (
-    commercialTenants.find((tenant) => tenant.id === selectedTenantId) || commercialTenants[0]
-  ), [commercialTenants, selectedTenantId])
-
-  const { data: tenantEntitlements = [] } = useQuery<CommercialEntitlement[]>({
-    queryKey: ['commercial-entitlements', selectedTenant?.id],
-    queryFn: async () => (await settingsApi.tenantEntitlements(selectedTenant!.id)).data,
-    enabled: isOwner && Boolean(selectedTenant?.id),
-    retry: false,
-  })
-  const { data: tenantUsage = [] } = useQuery<CommercialUsage[]>({
-    queryKey: ['commercial-usage', selectedTenant?.id],
-    queryFn: async () => (await settingsApi.tenantUsage(selectedTenant!.id)).data,
-    enabled: isOwner && Boolean(selectedTenant?.id),
-    retry: false,
-  })
-
   const updateFeature = useMutation({
     mutationFn: ({ featureKey, enabled }: { featureKey: string; enabled: boolean }) =>
       settingsApi.updateProjectFeature(selectedProject!.id, featureKey, enabled),
@@ -121,43 +94,15 @@ export default function OwnerConsolePage() {
     },
     onError: () => toast.error('Gagal mengubah fitur'),
   })
-  const createTenant = useMutation({
-    mutationFn: () => settingsApi.createCommercialTenant({
-      name: newTenantName.trim(),
-      plan_key: newTenantPlan,
-      status: 'trial',
-      onboarding_stage: 'discovery',
-    }),
+  const applyProjectPlan = useMutation({
+    mutationFn: ({ projectId, planKey }: { projectId: number; planKey: CommercialPlanKey }) =>
+      settingsApi.applyProjectPlan(projectId, planKey),
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['commercial-tenants'] })
-      queryClient.invalidateQueries({ queryKey: ['commercial-readiness'] })
-      setSelectedTenantId(response.data.id)
-      setNewTenantName('')
-      toast.success('Tenant pilot dibuat')
+      queryClient.invalidateQueries({ queryKey: ['owner-projects'] })
+      queryClient.invalidateQueries({ queryKey: ['project-feature-flags', selectedProject?.id] })
+      toast.success(`${response.data.plan_name} diterapkan pada proyek`)
     },
-    onError: () => toast.error('Gagal membuat tenant'),
-  })
-  const updateTenant = useMutation({
-    mutationFn: ({ tenantId, data }: { tenantId: number; data: Record<string, unknown> }) =>
-      settingsApi.updateCommercialTenant(tenantId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commercial-tenants'] })
-      queryClient.invalidateQueries({ queryKey: ['commercial-usage'] })
-      queryClient.invalidateQueries({ queryKey: ['commercial-entitlements'] })
-      queryClient.invalidateQueries({ queryKey: ['commercial-readiness'] })
-      toast.success('Tenant diperbarui')
-    },
-    onError: () => toast.error('Gagal memperbarui tenant'),
-  })
-  const updateEntitlement = useMutation({
-    mutationFn: ({ tenantId, featureKey, enabled }: { tenantId: number; featureKey: string; enabled: boolean }) =>
-      settingsApi.updateTenantEntitlement(tenantId, featureKey, enabled),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commercial-entitlements', selectedTenant?.id] })
-      queryClient.invalidateQueries({ queryKey: ['commercial-readiness'] })
-      toast.success('Entitlement diperbarui')
-    },
-    onError: () => toast.error('Gagal mengubah entitlement'),
+    onError: (error: unknown) => toast.error(apiErrorMessage(error, 'Gagal menerapkan paket proyek')),
   })
   const resetOperationalData = useMutation({
     mutationFn: () => systemApi.resetOperationalData({
@@ -193,7 +138,9 @@ export default function OwnerConsolePage() {
   const activeCount = featureFlags.filter((flag) => flag.enabled).length
   const disabledCount = featureFlags.length - activeCount
   const coreCount = featureFlags.filter((flag) => flag.is_core).length
-  const selectedPlan = commercialPlans.find((plan) => plan.plan_key === selectedTenant?.plan_key)
+  const selectedProjectPlanKey = selectedProject
+    ? projectPlanChoices[selectedProject.id] || selectedProject.plan_key || 'professional'
+    : 'professional'
 
   const formatCurrency = (value?: number) => (
     typeof value === 'number'
@@ -283,240 +230,46 @@ export default function OwnerConsolePage() {
       </div>
 
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-600">Pengelolaan layanan organisasi</p>
-            <h2 className="text-xl font-bold text-slate-950">Tenant, Paket, Entitlement, dan Readiness</h2>
-            <p className="mt-1 text-sm text-slate-500">Kelola paket layanan, hak akses fitur, kapasitas penggunaan, dan kesiapan operasional setiap organisasi.</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              className="input h-10 min-w-[220px] text-sm"
-              value={newTenantName}
-              onChange={(event) => setNewTenantName(event.target.value)}
-              placeholder="Nama organisasi"
-            />
-            <select
-              className="input h-10 min-w-[180px] text-sm"
-              value={newTenantPlan}
-              onChange={(event) => setNewTenantPlan(event.target.value as CommercialPlanKey)}
-            >
-              {commercialPlans.map((plan) => (
-                <option key={plan.plan_key} value={plan.plan_key}>{plan.name}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              disabled={newTenantName.trim().length < 2 || createTenant.isPending}
-              onClick={() => createTenant.mutate()}
-              className="btn-primary h-10 min-w-[136px] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {createTenant.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />}
-              Buat tenant
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-cyan-600">Paket layanan per proyek</p>
+          <h2 className="text-xl font-bold text-slate-950">Terapkan paket pada proyek yang dipilih</h2>
+          <p className="mt-1 text-sm text-slate-500">Admin Owner memilih proyek aktif maupun proyek lain, lalu menerapkan Starter, Professional, atau Enterprise. Penerapan paket memperbarui entitlement proyek tersebut.</p>
+        </div>
+
+        <div className="card border-cyan-200 p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)_auto] lg:items-end">
+            <label className="block">
+              <span className="label">Proyek tujuan</span>
+              <select className="input bg-white font-medium" value={selectedProject?.id || ''} onChange={(event) => setSelectedProjectId(Number(event.target.value))} disabled={projects.length === 0}>
+                {runningProjects.length > 0 && <optgroup label="Sedang berjalan">{runningProjects.map((project) => <option key={project.id} value={project.id}>{project.project_name} · {project.progress_percent}%</option>)}</optgroup>}
+                {otherProjects.length > 0 && <optgroup label="Proyek lainnya">{otherProjects.map((project) => <option key={project.id} value={project.id}>{project.project_name} · {PROJECT_STATUS_LABEL[project.status]}</option>)}</optgroup>}
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">Paket proyek</span>
+              <select className="input bg-white" value={selectedProjectPlanKey} disabled={!selectedProject} onChange={(event) => selectedProject && setProjectPlanChoices((current) => ({ ...current, [selectedProject.id]: event.target.value as CommercialPlanKey }))}>
+                {commercialPlans.map((plan) => <option key={plan.plan_key} value={plan.plan_key}>{plan.name}</option>)}
+              </select>
+            </label>
+            <button type="button" className="btn-primary justify-center" disabled={!selectedProject || applyProjectPlan.isPending} onClick={() => selectedProject && applyProjectPlan.mutate({ projectId: selectedProject.id, planKey: selectedProjectPlanKey })}>
+              {applyProjectPlan.isPending ? <Loader2 size={16} className="animate-spin" /> : <PackageCheck size={16} />}
+              Terapkan paket
             </button>
           </div>
+          {selectedProject && <p className="mt-3 text-xs text-slate-500">Paket tersimpan saat ini: <span className="font-semibold text-slate-700">{commercialPlans.find((plan) => plan.plan_key === selectedProject.plan_key)?.name || 'Belum ditetapkan'}</span></p>}
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="card p-5 xl:col-span-2">
-            <div className="flex items-center gap-2">
-              <Rocket size={18} className="text-cyan-600" />
-              <h3 className="text-base font-semibold text-slate-900">Kesiapan layanan komersial</h3>
-            </div>
+            <div className="flex items-center gap-2"><Rocket size={18} className="text-cyan-600" /><h3 className="text-base font-semibold text-slate-900">Kesiapan layanan</h3></div>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {(commercialReadiness?.checks || []).map((check) => (
-                <div key={check.key} className="rounded-lg border border-slate-200 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900">{check.title}</h4>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">{check.detail}</p>
-                    </div>
-                    <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold uppercase', readinessStyle[check.status])}>
-                      {check.status}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-xs font-medium text-slate-600">{check.action}</p>
-                </div>
-              ))}
-              {!commercialReadiness?.checks?.length && (
-                <div className="rounded-lg border border-slate-200 p-4 text-sm text-slate-400">Readiness belum dimuat.</div>
-              )}
+              {(commercialReadiness?.checks || []).map((check) => <div key={check.key} className="rounded-lg border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-slate-900">{check.title}</h4><p className="mt-1 text-xs leading-5 text-slate-500">{check.detail}</p></div><span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold uppercase', readinessStyle[check.status])}>{check.status}</span></div><p className="mt-3 text-xs font-medium text-slate-600">{check.action}</p></div>)}
+              {!commercialReadiness?.checks?.length && <div className="rounded-lg border border-slate-200 p-4 text-sm text-slate-400">Readiness belum dimuat.</div>}
             </div>
           </div>
-
           <div className="card p-5">
-            <div className="flex items-center gap-2">
-              <PackageCheck size={18} className="text-cyan-600" />
-              <h3 className="text-base font-semibold text-slate-900">Paket produk</h3>
-            </div>
-            <div className="mt-4 space-y-3">
-              {commercialPlans.map((plan) => (
-                <div key={plan.plan_key} className="rounded-lg border border-slate-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-semibold text-slate-900">{plan.name}</h4>
-                    <span className="badge badge-gray">{plan.enabled_features.includes('all') ? 'All features' : `${plan.enabled_features.length} fitur`}</span>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{plan.positioning}</p>
-                  <p className="mt-3 text-sm font-bold text-slate-900">
-                    {formatCurrency(plan.monthly_base_price_min_idr)}
-                    {plan.monthly_base_price_max_idr ? ` - ${formatCurrency(plan.monthly_base_price_max_idr)}/bulan` : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="card p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Organisasi terdaftar</h3>
-                <p className="mt-1 text-xs text-slate-500">Pilih tenant untuk melihat limit dan entitlement.</p>
-              </div>
-              <span className="badge badge-info">{commercialTenants.length} tenant</span>
-            </div>
-            <div className="mt-4 space-y-2">
-              {commercialTenants.map((tenant) => (
-                <button
-                  key={tenant.id}
-                  type="button"
-                  onClick={() => setSelectedTenantId(tenant.id)}
-                  className={cn(
-                    'w-full rounded-lg border p-3 text-left transition',
-                    selectedTenant?.id === tenant.id
-                      ? 'border-cyan-300 bg-cyan-50'
-                      : 'border-slate-200 hover:bg-slate-50',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-slate-900">{tenant.name}</span>
-                    <span className="badge badge-gray">{tenant.status}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{tenant.slug} · {tenant.plan_key}</p>
-                </button>
-              ))}
-              {commercialTenants.length === 0 && (
-                <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-400">
-                  Belum ada organisasi. Tambahkan organisasi pertama melalui formulir di atas.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="card p-5 xl:col-span-2">
-            {selectedTenant ? (
-              <div className="space-y-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-semibold text-slate-900">{selectedTenant.name}</h3>
-                      <span className="badge badge-info">{selectedPlan?.name || selectedTenant.plan_key}</span>
-                      <span className="badge badge-gray">{selectedTenant.onboarding_stage}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Dibuat {formatDateTime(selectedTenant.created_at)} · Update {formatDateTime(selectedTenant.updated_at)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      className="input h-9 w-[170px] text-xs"
-                      value={selectedTenant.plan_key}
-                      onChange={(event) => updateTenant.mutate({
-                        tenantId: selectedTenant.id,
-                        data: { plan_key: event.target.value },
-                      })}
-                    >
-                      {commercialPlans.map((plan) => (
-                        <option key={plan.plan_key} value={plan.plan_key}>{plan.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      className="input h-9 w-[120px] text-xs"
-                      value={selectedTenant.status}
-                      onChange={(event) => updateTenant.mutate({
-                        tenantId: selectedTenant.id,
-                        data: { status: event.target.value },
-                      })}
-                    >
-                      {['trial', 'active', 'paused', 'cancelled'].map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                  {tenantUsage.map((usage) => (
-                    <div key={usage.metric_key} className="rounded-lg border border-slate-200 p-3">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                        <Activity size={13} />
-                        {usage.label}
-                      </div>
-                      <div className="mt-2 text-lg font-bold text-slate-950">
-                        {usage.used_value.toLocaleString('id-ID')}
-                        <span className="text-xs font-medium text-slate-400"> / {usage.limit_value?.toLocaleString('id-ID') || 'Custom'}</span>
-                      </div>
-                      <div className="mt-2 h-1.5 rounded-full bg-slate-100">
-                        <div
-                          className="h-1.5 rounded-full bg-cyan-500"
-                          style={{ width: `${Math.min(usage.percent_used || 0, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-900">Entitlement fitur tenant</h4>
-                    <span className="text-xs text-slate-400">{tenantEntitlements.filter((item) => item.enabled).length} aktif</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {tenantEntitlements.map((item) => {
-                      const isPending = updateEntitlement.isPending && updateEntitlement.variables?.featureKey === item.feature_key
-                      return (
-                        <div key={item.feature_key} className="rounded-lg border border-slate-200 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h5 className="text-sm font-semibold text-slate-900">{item.label}</h5>
-                                <span className="badge badge-gray">{item.source}</span>
-                                {item.is_core && <span className="badge badge-warning">Core</span>}
-                              </div>
-                              <p className="mt-1 text-xs text-slate-400">{item.category} · {item.feature_key}</p>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={item.is_core || isPending}
-                              onClick={() => updateEntitlement.mutate({
-                                tenantId: item.tenant_id,
-                                featureKey: item.feature_key,
-                                enabled: !item.enabled,
-                              })}
-                              className={cn(
-                                'flex h-8 min-w-[86px] items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold transition',
-                                item.enabled
-                                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                                (item.is_core || isPending) && 'cursor-not-allowed opacity-60',
-                              )}
-                            >
-                              {isPending ? <Loader2 size={13} className="animate-spin" /> : item.enabled ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                              {item.enabled ? 'Aktif' : 'Off'}
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex h-full min-h-[260px] items-center justify-center text-center text-sm text-slate-400">
-                Buat atau pilih tenant untuk mengelola paket dan entitlement.
-              </div>
-            )}
+            <div className="flex items-center gap-2"><PackageCheck size={18} className="text-cyan-600" /><h3 className="text-base font-semibold text-slate-900">Paket produk</h3></div>
+            <div className="mt-4 space-y-3">{commercialPlans.map((plan) => <div key={plan.plan_key} className={cn('rounded-lg border p-4', selectedProjectPlanKey === plan.plan_key ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200')}><div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-slate-900">{plan.name}</h4><span className="badge badge-gray">{plan.enabled_features.includes('all') ? 'Semua fitur' : `${plan.enabled_features.length} fitur`}</span></div><p className="mt-2 text-xs leading-5 text-slate-500">{plan.positioning}</p><p className="mt-3 text-sm font-bold text-slate-900">{formatCurrency(plan.monthly_base_price_min_idr)}{plan.monthly_base_price_max_idr ? ` - ${formatCurrency(plan.monthly_base_price_max_idr)}/bulan` : ''}</p></div>)}</div>
           </div>
         </div>
       </div>

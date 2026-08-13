@@ -18,6 +18,16 @@ _Avoid_: Admin aplikasi, super admin, admin proyek
 Akun administrator operasional yang mewakili tepat satu proyek dan dapat membuat, mengimpor, serta mengatur akun pengguna pada proyek tersebut. Setiap proyek memiliki tepat satu Admin Proyek; akun ini tidak dapat mengelola tenant, paket, entitlement, feature flag, kesiapan layanan, atau reset sistem.
 _Avoid_: Admin Owner, project role `project_admin`
 
+## Setup Admin Proyek
+
+Proses satu kali untuk membuat satu akun Admin Proyek sekaligus satu proyek kosong yang diwakilinya. Setup ini tidak mengimpor dataset, tidak mengunggah dokumen, dan tidak membuat akun pegawai.
+_Avoid_: Import dataset proyek, bootstrap Admin Owner
+
+## Paket proyek
+
+Paket layanan Starter, Professional, atau Enterprise yang ditetapkan Admin Owner pada satu proyek. Penerapan paket mengatur pilihan awal entitlement fitur proyek; Admin Owner masih dapat menyesuaikan fitur noninti setelah paket diterapkan.
+_Avoid_: Tenant organisasi, dataset proyek
+
 ## Entitlement fitur proyek
 
 Pilihan fitur aktif untuk satu proyek yang ditetapkan oleh Admin Owner. Entitlement ini menentukan menu dan kapabilitas yang tersedia bagi Admin Proyek dan anggota proyek tersebut.
@@ -45,8 +55,23 @@ Task dummy yang diberi penanda AI untuk memperlihatkan coverage role pada presen
 
 ## Dataset terstruktur
 
-Data proyek yang sudah dinormalisasi menjadi JSON atau JSONL dan siap dipetakan secara deterministik menjadi proyek, akun, WBS, task, graph, rule, dan contoh reasoning. Import dataset terstruktur bukan panggilan model AI.
+Data proyek yang sudah dinormalisasi menjadi JSON atau JSONL dan siap dipetakan secara deterministik menjadi proyek, WBS, task, graph, rule, dan contoh reasoning. Dataset proyek tidak membuat akun, tidak menetapkan password, dan tidak menetapkan PIC. Import dataset terstruktur bukan panggilan model AI.
 _Avoid_: Dokumen sumber, hasil generate Nemotron
+
+## Dataset akun proyek
+
+File CSV terpisah yang memuat nama, email, role aplikasi, nama divisi, dan role proyek. Admin Proyek mengimpornya melalui fitur Pengguna. Nama divisi dibuat atau digunakan kembali dalam lingkup proyek yang sama; password tidak disimpan di CSV.
+_Avoid_: Dataset proyek, ZIP proyek, daftar password
+
+## Register kredensial proyek
+
+Dokumen Word rahasia yang dibuat atas konfirmasi dan password Admin Proyek. Proses pembuatannya merotasi password seluruh akun anggota aktif pada proyek, mengaktifkan password acak tersebut untuk login, menghentikan sesi lama melalui perubahan versi autentikasi, lalu menyajikannya satu kali dalam tabel. Nilai password tidak dicatat pada audit log dan tidak dapat dibaca kembali dari database.
+_Avoid_: Ekspor user biasa, undangan email, penyimpanan password mentah
+
+## Import ulang dataset proyek
+
+Impor dataset pertama mengisi wadah proyek kosong milik Admin Proyek dan mengadopsi nama proyek dari ZIP tanpa membuat proyek kedua. Setelah dataset pernah dimuat, impor dengan nama proyek yang sama memperbarui data beridentitas sama, misalnya WBS yang sama; ZIP dengan nama proyek berbeda ditolak agar data proyek aktif tidak tertimpa.
+_Avoid_: Membuat proyek baru, mengganti Admin Proyek
 
 ## Dokumen sumber
 

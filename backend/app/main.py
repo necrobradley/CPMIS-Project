@@ -20,7 +20,11 @@ from app.core.rate_limit import (
     sensitive_rate_limit_rules,
 )
 from app.api.v1.router import api_router
-from app.db.database import bootstrap_feature_flags, bootstrap_project_memberships, create_tables
+from app.db.database import (
+    bootstrap_feature_flags,
+    bootstrap_project_memberships,
+    create_tables,
+)
 
 logging.basicConfig(
     level=logging.INFO,
