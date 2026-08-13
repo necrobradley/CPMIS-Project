@@ -202,8 +202,8 @@ export default function DashboardPage() {
             Selamat datang, {user?.name?.split(' ')[0] ?? 'Project Team'}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Frontend sudah diperkaya gaya Kimi, sementara data tetap membaca API CPMIS, scheduler, n8n,
-            Telegram, dan AI workflow yang siap jalan realtime.
+            Rencanix menyatukan pengendalian proyek, kolaborasi lintas peran, pelaporan lapangan,
+            dan analitik AI dalam satu ruang kerja yang terhubung secara real time.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700"><HardHat size={19} /></div>
-              <div><h2 className="font-bold text-slate-900">My Work Today</h2><p className="text-xs font-medium uppercase text-slate-400">{myWork.role}</p></div>
+              <div><h2 className="font-bold text-slate-900">Prioritas Kerja Hari Ini</h2><p className="text-xs font-medium uppercase text-slate-400">{myWork.role}</p></div>
             </div>
             <div className="flex items-center gap-2">
               <span className="badge-info">{myWork.tasks.length} task</span>
@@ -267,7 +267,7 @@ export default function DashboardPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-slate-900">Progress proyek</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Tracking dari backend dengan demo fallback bila data kosong</p>
+              <p className="mt-0.5 text-xs text-slate-400">Ringkasan progres seluruh proyek berdasarkan data operasional terbaru</p>
             </div>
             <FolderKanban size={18} className="text-slate-300" />
           </div>
@@ -289,7 +289,7 @@ export default function DashboardPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-slate-900">Distribusi task</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Kanban status saat ini</p>
+              <p className="mt-0.5 text-xs text-slate-400">Komposisi tugas berdasarkan status pelaksanaan saat ini</p>
             </div>
             <CheckCircle2 size={18} className="text-slate-300" />
           </div>
@@ -360,7 +360,7 @@ export default function DashboardPage() {
             ))}
           </div>
           <div className="mt-4 rounded-xl border border-slate-100 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Workflow siap</div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Integrasi operasional</div>
             <div className="text-2xl font-bold text-slate-950">{formatNumber(workflows.length)}</div>
           </div>
         </div>

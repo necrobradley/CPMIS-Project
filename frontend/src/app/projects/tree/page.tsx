@@ -1,337 +1,242 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { AlertCircle, Building2, CheckSquare, GitBranch, Loader2, Users } from 'lucide-react'
+
 import { projectsApi, tasksApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { Project, Division, Task } from '@/types'
-import { statusBadgeClass, STATUS_LABELS, PRIORITY_LABELS, priorityBadgeClass } from '@/lib/utils'
-import { GitBranch, Loader2, Building2, Users, CheckSquare, AlertTriangle } from 'lucide-react'
-
-// ── Mini node renderer (no ReactFlow dep needed for MVP) ─────────
-// Full React Flow integration requires npm install — this version
-// renders an interactive SVG tree that works without extra packages.
+import { Division, Project, Task } from '@/types'
+import { PRIORITY_LABELS, STATUS_LABELS, priorityBadgeClass, statusBadgeClass } from '@/lib/utils'
 
 interface TreeNode {
-  id:       string
-  type:     'project' | 'division' | 'task'
-  label:    string
+  id: string
+  type: 'project' | 'division' | 'task'
+  label: string
   sublabel?: string
-  status?:  string
+  status?: string
   priority?: string
   children: TreeNode[]
-  count?:   number
+  taskId?: number
+}
+
+function taskNode(task: Task): TreeNode {
+  return {
+    id: `task-${task.id}`,
+    type: 'task',
+    taskId: task.id,
+    label: `${task.specification?.wbs_code ?? task.id} · ${task.title}`,
+    sublabel: `${task.progress_percent}% selesai`,
+    status: task.status,
+    priority: task.priority,
+    children: [],
+  }
 }
 
 function buildTree(project: Project, divisions: Division[], tasks: Task[]): TreeNode {
-  const divNodes: TreeNode[] = divisions.map(div => {
-    const divTasks = tasks.filter(t => t.division_id === div.id)
-    const taskNodes: TreeNode[] = divTasks.map(t => ({
-      id: `task-${t.id}`, type: 'task', label: `${t.specification?.wbs_code ?? t.id} · ${t.title}`,
-      sublabel: `${t.progress_percent}%`, status: t.status, priority: t.priority,
-      children: [],
-    }))
+  const divisionNodes = divisions.map((division): TreeNode => {
+    const divisionTasks = tasks.filter((task) => task.division_id === division.id)
     return {
-      id: `div-${div.id}`, type: 'division', label: div.division_name,
-      sublabel: `${divTasks.length} task`, children: taskNodes,
-      count: divTasks.filter(t => t.status === 'done').length,
+      id: `division-${division.id}`,
+      type: 'division',
+      label: division.division_name,
+      sublabel: `${divisionTasks.length} tugas · ${divisionTasks.filter((task) => task.status === 'done').length} selesai`,
+      children: divisionTasks.map(taskNode),
     }
   })
 
-  // Tasks without division
-  const noDivTasks = tasks.filter(t => !t.division_id)
-  if (noDivTasks.length > 0) {
-    divNodes.push({
-      id: 'div-none', type: 'division', label: 'Tanpa Divisi',
-      sublabel: `${noDivTasks.length} task`,
-      children: noDivTasks.map(t => ({
-        id: `task-${t.id}`, type: 'task', label: `${t.specification?.wbs_code ?? t.id} · ${t.title}`,
-        sublabel: `${t.progress_percent}%`, status: t.status, priority: t.priority,
-        children: [],
-      })),
+  const unassignedTasks = tasks.filter((task) => !task.division_id)
+  if (unassignedTasks.length > 0) {
+    divisionNodes.push({
+      id: 'division-unassigned',
+      type: 'division',
+      label: 'Belum ditetapkan ke divisi',
+      sublabel: `${unassignedTasks.length} tugas`,
+      children: unassignedTasks.map(taskNode),
     })
   }
 
   return {
-    id: `proj-${project.id}`, type: 'project',
-    label: project.project_name, sublabel: `${project.progress_percent}% selesai`,
-    status: project.status, children: divNodes,
+    id: `project-${project.id}`,
+    type: 'project',
+    label: project.project_name,
+    sublabel: `${project.progress_percent}% progres keseluruhan`,
+    status: project.status,
+    children: divisionNodes,
   }
-}
-
-const NODE_W = 200
-const NODE_H = 64
-const H_GAP  = 40
-const V_GAP  = 80
-
-interface LayoutNode {
-  node:   TreeNode
-  x:      number
-  y:      number
-  depth:  number
-}
-
-function layoutTree(root: TreeNode): LayoutNode[] {
-  const result: LayoutNode[] = []
-  let leafCount = 0
-
-  function countLeaves(n: TreeNode): number {
-    if (n.children.length === 0) return 1
-    return n.children.reduce((s, c) => s + countLeaves(c), 0)
-  }
-
-  function place(n: TreeNode, depth: number, offset: number): number {
-    if (n.children.length === 0) {
-      result.push({ node: n, x: offset * (NODE_W + H_GAP), y: depth * (NODE_H + V_GAP), depth })
-      return offset + 1
-    }
-    let cur = offset
-    const childXs: number[] = []
-    for (const c of n.children) {
-      const leafsBefore = cur
-      cur = place(c, depth + 1, cur)
-      childXs.push(leafsBefore * (NODE_W + H_GAP) + ((cur - leafsBefore - 1) * (NODE_W + H_GAP)) / 2)
-    }
-    const cx = (childXs[0] + childXs[childXs.length - 1]) / 2
-    result.push({ node: n, x: cx, y: depth * (NODE_H + V_GAP), depth })
-    return cur
-  }
-
-  place(root, 0, 0)
-  return result
-}
-
-function NodeBox({ node, x, y, selected, onSelect }: {
-  node: TreeNode; x: number; y: number
-  selected: boolean; onSelect: (n: TreeNode) => void
-}) {
-  const colors: Record<string, { bg: string; border: string; text: string }> = {
-    project:  { bg: '#0ea5e9', border: '#0284c7', text: '#fff' },
-    division: { bg: '#6366f1', border: '#4f46e5', text: '#fff' },
-    task:     { bg: '#fff', border: selected ? '#0ea5e9' : '#e2e8f0', text: '#1e293b' },
-  }
-  const c = colors[node.type]
-  const isDone = node.status === 'done'
-  return (
-    <g onClick={() => onSelect(node)} style={{ cursor: 'pointer' }}>
-      <rect x={x} y={y} width={NODE_W} height={NODE_H} rx={12}
-        fill={isDone && node.type === 'task' ? '#f0fdf4' : c.bg}
-        stroke={selected ? '#f59e0b' : c.border}
-        strokeWidth={selected ? 2.5 : 1.5}
-        filter={selected ? 'drop-shadow(0 4px 12px rgba(14,165,233,.35))' : 'drop-shadow(0 1px 3px rgba(0,0,0,.08))'}
-      />
-      {/* Icon */}
-      <text x={x + 14} y={y + 22} fontSize={14} fill={node.type === 'task' ? '#94a3b8' : '#fff'}>
-        {node.type === 'project' ? '🏗️' : node.type === 'division' ? '👥' : '✅'}
-      </text>
-      {/* Label */}
-      <text x={x + 34} y={y + 24} fontSize={11} fontWeight={600}
-        fill={node.type === 'task' ? '#1e293b' : '#fff'} fontFamily="Sora,sans-serif">
-        {node.label.length > 20 ? node.label.slice(0, 20) + '…' : node.label}
-      </text>
-      {/* Sublabel */}
-      {node.sublabel && (
-        <text x={x + 34} y={y + 40} fontSize={10} fill={node.type === 'task' ? '#94a3b8' : 'rgba(255,255,255,.75)'} fontFamily="Sora,sans-serif">
-          {node.sublabel}
-        </text>
-      )}
-      {/* Done badge */}
-      {isDone && node.type === 'task' && (
-        <circle cx={x + NODE_W - 12} cy={y + 12} r={7} fill="#10b981" />
-      )}
-    </g>
-  )
-}
-
-function Edge({ x1, y1, x2, y2 }: { x1:number; y1:number; x2:number; y2:number }) {
-  const mx = (x1 + x2) / 2
-  return (
-    <path d={`M${x1},${y1} C${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}`}
-      fill="none" stroke="#cbd5e1" strokeWidth={1.5} />
-  )
 }
 
 export default function ProjectTreePage() {
   const user = useAuthStore((state) => state.user)
   const isStaff = user?.role === 'staff' || user?.role === 'subcontractor'
   const [projectId, setProjectId] = useState<number | ''>('')
-  const [selected, setSelected]   = useState<TreeNode | null>(null)
-  const [pan, setPan] = useState({ x: 40, y: 40 })
-  const [dragging, setDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [selected, setSelected] = useState<TreeNode | null>(null)
 
-  const { data: projects = [] } = useQuery<Project[]>({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: async () => (await projectsApi.list()).data,
   })
-  const { data: divisions = [] } = useQuery<Division[]>({
+  const { data: divisions = [], isLoading: divisionsLoading } = useQuery<Division[]>({
     queryKey: ['divisions', projectId],
     queryFn: async () => projectId ? (await projectsApi.divisions(Number(projectId))).data : [],
-    enabled: !!projectId,
+    enabled: Boolean(projectId),
   })
-  const { data: tasks = [] } = useQuery<Task[]>({
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<Task[]>({
     queryKey: ['tasks', projectId, isStaff ? 'division' : 'all'],
     queryFn: async () => projectId ? (await tasksApi.list({
       project_id: Number(projectId),
       ...(isStaff ? { scope: 'division' } : {}),
     })).data : [],
-    enabled: !!projectId,
+    enabled: Boolean(projectId),
   })
 
   useEffect(() => {
-    if (!projectId && projects.length > 0) {
-      setProjectId(projects[0].id)
-    }
+    if (!projectId && projects.length > 0) setProjectId(projects[0].id)
   }, [projectId, projects])
 
-  const project = projects.find(p => p.id === Number(projectId))
+  const project = projects.find((item) => item.id === Number(projectId))
   const tree = project ? buildTree(project, divisions, tasks) : null
-  const layout = tree ? layoutTree(tree) : []
-
-  // Compute SVG size
-  const maxX = layout.reduce((m, n) => Math.max(m, n.x + NODE_W), 0)
-  const maxY = layout.reduce((m, n) => Math.max(m, n.y + NODE_H), 0)
-  const svgW  = maxX + 60
-  const svgH  = maxY + 60
-
-  // Edges
-  const edges: { x1:number; y1:number; x2:number; y2:number }[] = []
-  for (const ln of layout) {
-    for (const child of ln.node.children) {
-      const childLayout = layout.find(l => l.node.id === child.id)
-      if (childLayout) {
-        edges.push({
-          x1: ln.x + NODE_W / 2,      y1: ln.y + NODE_H,
-          x2: childLayout.x + NODE_W / 2, y2: childLayout.y,
-        })
-      }
-    }
-  }
-
-  function onMouseDown(e: React.MouseEvent) {
-    setDragging(true)
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-  }
-  function onMouseMove(e: React.MouseEvent) {
-    if (!dragging) return
-    setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
-  }
-  function onMouseUp() { setDragging(false) }
+  const loading = projectsLoading || (Boolean(projectId) && (divisionsLoading || tasksLoading))
 
   return (
-    <div className="space-y-4 animate-in" style={{ height: 'calc(100vh - 80px)' }}>
-      <div className="flex items-center justify-between">
+    <div className="animate-in space-y-5">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <GitBranch size={22} className="text-brand-500" /> {isStaff ? 'Struktur Divisi' : 'Project Tree View'}
+            <GitBranch size={22} className="text-brand-500" /> {isStaff ? 'Struktur Divisi' : 'Struktur Proyek'}
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {isStaff ? 'Visualisasi proyek, divisi, dan task yang terkait dengan pekerjaan Anda' : 'Visualisasi hierarki proyek, divisi, dan task'}
+          <p className="mt-1 text-sm text-slate-500">
+            Setiap tugas disusun vertikal di bawah divisi penanggung jawab agar alur pekerjaan mudah ditelusuri.
           </p>
         </div>
-        <select value={projectId} onChange={e => { setProjectId(e.target.value ? Number(e.target.value) : ''); setSelected(null) }}
-          className="input w-56 text-sm">
-          <option value="">Pilih Proyek...</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+        <select
+          value={projectId}
+          onChange={(event) => {
+            setProjectId(event.target.value ? Number(event.target.value) : '')
+            setSelected(null)
+          }}
+          className="input w-full text-sm sm:w-72"
+        >
+          <option value="">Pilih proyek</option>
+          {projects.map((item) => <option key={item.id} value={item.id}>{item.project_name}</option>)}
         </select>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-slate-500">
-        {[{color:'#0ea5e9',label:'Proyek'},{color:'#6366f1',label:'Divisi'},{color:'#e2e8f0',label:'Task'}].map(l=>(
-          <div key={l.label} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{background:l.color,border:'1px solid #cbd5e1'}} />
-            {l.label}
-          </div>
-        ))}
-        <span className="text-slate-300">|</span>
-        <span>Drag untuk geser · Klik node untuk detail</span>
-      </div>
-
-      <div className="flex gap-4 h-full">
-        {/* Canvas */}
-        <div className="flex-1 card overflow-hidden relative"
-          style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-          {!projectId ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-300">
-              <GitBranch size={48} className="mb-3" />
-              <p className="text-sm">{projects.length === 0 ? 'Belum ada proyek yang terhubung ke akun ini' : 'Pilih proyek untuk melihat tree view'}</p>
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="card min-h-[520px] p-5 sm:p-7">
+          {loading ? (
+            <div className="flex min-h-[440px] items-center justify-center"><Loader2 size={30} className="animate-spin text-brand-500" /></div>
+          ) : !tree ? (
+            <div className="flex min-h-[440px] flex-col items-center justify-center text-center text-slate-400">
+              <GitBranch size={46} className="mb-3 text-slate-300" />
+              <p className="text-sm">{projects.length === 0 ? 'Belum ada proyek yang terhubung ke akun ini.' : 'Pilih proyek untuk melihat strukturnya.'}</p>
             </div>
-          ) : layout.length === 0 ? (
-            <div className="flex items-center justify-center h-full"><Loader2 size={28} className="animate-spin text-brand-500" /></div>
           ) : (
-            <svg width={svgW} height={svgH}
-              style={{
-                transform: `translate(${pan.x}px,${pan.y}px)`,
-                transformOrigin: '0 0',
-                transition: dragging ? 'none' : 'transform .1s',
-                userSelect: 'none',
-              }}>
-              {edges.map((e, i) => <Edge key={i} {...e} />)}
-              {layout.map(ln => (
-                <NodeBox key={ln.node.id} node={ln.node} x={ln.x} y={ln.y}
-                  selected={selected?.id === ln.node.id}
-                  onSelect={setSelected} />
-              ))}
-            </svg>
+            <div className="mx-auto max-w-4xl">
+              <button
+                type="button"
+                onClick={() => setSelected(tree)}
+                className="mx-auto flex w-full max-w-xl items-center gap-4 rounded-2xl bg-gradient-to-r from-sky-600 to-cyan-500 px-5 py-4 text-left text-white shadow-lg shadow-sky-500/20 transition hover:-translate-y-0.5"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15"><Building2 size={22} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-widest text-sky-100">Proyek</span>
+                  <span className="mt-0.5 block truncate font-bold">{tree.label}</span>
+                  <span className="mt-1 block text-xs text-sky-100">{tree.sublabel}</span>
+                </span>
+              </button>
+
+              <div className="mx-auto h-8 w-px bg-slate-300" />
+
+              {tree.children.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                  <Users size={34} className="mx-auto mb-3 text-slate-300" />
+                  <p className="font-semibold text-slate-700">Belum ada divisi atau tugas</p>
+                  <p className="mt-1 text-sm text-slate-500">Data proyek akan muncul di sini setelah divisi dan tugas ditambahkan.</p>
+                </div>
+              ) : (
+                <div className="space-y-7">
+                  {tree.children.map((division) => (
+                    <section key={division.id} className="rounded-2xl border border-indigo-100 bg-indigo-50/35 p-4 sm:p-5">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(division)}
+                        className="flex w-full items-center gap-3 rounded-xl bg-indigo-600 px-4 py-3 text-left text-white shadow-sm transition hover:bg-indigo-700"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15"><Users size={18} /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[10px] font-semibold uppercase tracking-widest text-indigo-200">Divisi</span>
+                          <span className="block truncate text-sm font-bold">{division.label}</span>
+                        </span>
+                        <span className="shrink-0 text-xs text-indigo-100">{division.sublabel}</span>
+                      </button>
+
+                      {division.children.length === 0 ? (
+                        <div className="ml-4 border-l-2 border-dashed border-indigo-200 py-6 pl-6 text-sm text-slate-500">Belum ada tugas pada divisi ini.</div>
+                      ) : (
+                        <div className="ml-4 space-y-3 border-l-2 border-indigo-200 py-4 pl-6">
+                          {division.children.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              onClick={() => setSelected(task)}
+                              className="relative flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition before:absolute before:-left-6 before:top-1/2 before:h-px before:w-6 before:bg-indigo-200 hover:border-brand-300 hover:shadow-md"
+                            >
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500"><CheckSquare size={17} /></span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-800">{task.label}</span>
+                                <span className="mt-1 block text-xs text-slate-500">{task.sublabel}</span>
+                              </span>
+                              {task.status && <span className={`${statusBadgeClass(task.status)} badge hidden sm:inline-flex`}>{STATUS_LABELS[task.status] ?? task.status}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Detail panel */}
-        {selected && (
-          <div className="w-64 card p-4 space-y-3 overflow-y-auto flex-shrink-0 animate-in">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800 text-sm">Detail</h3>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+        <aside className="card p-5 xl:sticky xl:top-6">
+          <h2 className="text-sm font-bold text-slate-900">Detail struktur</h2>
+          {!selected ? (
+            <div className="py-10 text-center">
+              <AlertCircle size={28} className="mx-auto mb-3 text-slate-300" />
+              <p className="text-sm leading-6 text-slate-500">Pilih proyek, divisi, atau tugas untuk melihat informasi ringkasnya.</p>
             </div>
-            <div className="space-y-2">
+          ) : (
+            <div className="mt-4 space-y-4">
               <div>
-                <p className="label">Tipe</p>
-                <div className="flex items-center gap-1.5">
-                  {selected.type === 'project'  && <Building2 size={13} className="text-brand-500" />}
-                  {selected.type === 'division' && <Users size={13} className="text-indigo-500" />}
-                  {selected.type === 'task'     && <CheckSquare size={13} className="text-slate-500" />}
-                  <span className="text-sm capitalize text-slate-700">{selected.type}</span>
+                <p className="label">Jenis data</p>
+                <div className="flex items-center gap-2 text-sm font-semibold capitalize text-slate-700">
+                  {selected.type === 'project' && <Building2 size={15} className="text-brand-500" />}
+                  {selected.type === 'division' && <Users size={15} className="text-indigo-500" />}
+                  {selected.type === 'task' && <CheckSquare size={15} className="text-slate-500" />}
+                  {selected.type === 'task' ? 'Tugas' : selected.type === 'division' ? 'Divisi' : 'Proyek'}
                 </div>
               </div>
-              <div>
-                <p className="label">Nama</p>
-                <p className="text-sm text-slate-700">{selected.label}</p>
-              </div>
-              {selected.status && (
-                <div>
-                  <p className="label">Status</p>
-                  <span className={statusBadgeClass(selected.status)+' badge'}>{STATUS_LABELS[selected.status] ?? selected.status}</span>
-                </div>
-              )}
-              {selected.priority && (
-                <div>
-                  <p className="label">Prioritas</p>
-                  <span className={priorityBadgeClass(selected.priority)+' badge'}>{PRIORITY_LABELS[selected.priority]}</span>
-                </div>
-              )}
-              {selected.sublabel && (
-                <div>
-                  <p className="label">Progress / Jumlah</p>
-                  <p className="text-sm font-semibold text-slate-700">{selected.sublabel}</p>
-                </div>
-              )}
+              <div><p className="label">Nama</p><p className="text-sm leading-6 text-slate-700">{selected.label}</p></div>
+              {selected.status && <div><p className="label">Status</p><span className={`${statusBadgeClass(selected.status)} badge`}>{STATUS_LABELS[selected.status] ?? selected.status}</span></div>}
+              {selected.priority && <div><p className="label">Prioritas</p><span className={`${priorityBadgeClass(selected.priority)} badge`}>{PRIORITY_LABELS[selected.priority] ?? selected.priority}</span></div>}
+              {selected.sublabel && <div><p className="label">Ringkasan</p><p className="text-sm font-semibold text-slate-700">{selected.sublabel}</p></div>}
               {selected.children.length > 0 && (
                 <div>
-                  <p className="label">Sub-items</p>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {selected.children.map(c => (
-                      <button key={c.id} onClick={() => setSelected(c)}
-                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 transition text-slate-600 flex items-center gap-1.5">
-                        <span className="text-slate-400">→</span> {c.label.slice(0, 26)}{c.label.length > 26 ? '…' : ''}
+                  <p className="label">Item di bawahnya</p>
+                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                    {selected.children.map((child) => (
+                      <button key={child.id} type="button" onClick={() => setSelected(child)} className="w-full rounded-lg px-2 py-2 text-left text-xs leading-5 text-slate-600 transition hover:bg-slate-50 hover:text-brand-700">
+                        ↓ {child.label}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </aside>
       </div>
     </div>
   )

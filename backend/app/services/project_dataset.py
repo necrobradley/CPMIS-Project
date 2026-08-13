@@ -44,11 +44,16 @@ from app.schemas.schemas import (
     DigitalTwinRuleCreate,
 )
 from app.services.digital_twin import import_dataset
+from app.services.project_staffing import (
+    seed_ai_role_coverage_tasks,
+    upsert_full_project_roster,
+)
 
 
 MASTER_FILE = "30_AI_Training_Dataset_Master.json"
 GRAPH_FILE = "30_AI_Knowledge_Graph.json"
 INSTRUCTION_FILE = "30_AI_Instruction_Dataset.jsonl"
+DEMO_FEATURES_FILE = "CPMIS_Demo_Features.json"
 
 NODE_TYPE_MAP = {
     "project": DigitalTwinNodeType.PROJECT,
@@ -81,7 +86,7 @@ def _project_slug(summary: dict) -> str:
     return (slug or "project")[:36]
 
 
-def load_project_zip(content: bytes) -> tuple[dict, dict, list[dict]]:
+def load_project_zip(content: bytes) -> tuple[dict, dict, list[dict], dict]:
     try:
         archive = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile as exc:
@@ -101,7 +106,12 @@ def load_project_zip(content: bytes) -> tuple[dict, dict, list[dict]]:
         if INSTRUCTION_FILE in names:
             raw = archive.read(INSTRUCTION_FILE).decode("utf-8-sig")
             examples = [json.loads(line) for line in raw.splitlines() if line.strip()]
-    return master, graph, examples
+        demo_features = (
+            json.loads(archive.read(DEMO_FEATURES_FILE))
+            if DEMO_FEATURES_FILE in names
+            else {}
+        )
+    return master, graph, examples, demo_features
 
 
 def _task_status(activity: dict) -> TaskStatus:
@@ -140,7 +150,8 @@ def _upsert_core_project(
     admin_email: str,
     admin_password: str,
     telegram_id: str | None,
-) -> tuple[User, dict[str, User], Project, Division, bool, list[dict]]:
+    full_role_roster: bool = False,
+) -> tuple[User, dict[str, User], dict[str, User], Project, Division, bool, list[dict]]:
     summary = master.get("project_summary") or {}
     project_name = summary.get("project_name") or "Proyek Impor"
     project_slug = _project_slug(summary)
@@ -197,45 +208,56 @@ def _upsert_core_project(
     division.manager_id = owner.id
     db.flush()
 
-    account_specs = (
-        ("director", "Direktur Proyek", UserRole.DIRECTOR, "project_manager"),
-        ("manager", "Manajer Proyek", UserRole.MANAGER, "project_manager"),
-        ("staff", "Staf Lapangan", UserRole.STAFF, "site_engineer"),
-        ("subcontractor", "Staf Subkontraktor", UserRole.SUBCONTRACTOR, "subcontractor"),
-    )
-    role_users: dict[str, User] = {}
-    generated_accounts: list[dict] = []
-    for key, label, global_role, project_role in account_specs:
-        email = f"{key}.{project_slug}@cpmis.example.com"
-        user = db.query(User).filter(User.email == email).first()
-        created = user is None
-        temporary_password = None
-        if not user:
-            temporary_password = admin_password or secrets.token_urlsafe(12)
-            user = User(
-                name=f"{label} - {project_name}"[:100],
-                email=email,
-                password_hash=get_password_hash(temporary_password),
-                role=global_role,
-                is_active=True,
-            )
-            db.add(user)
-            db.flush()
-        elif admin_password:
-            user.password_hash = get_password_hash(admin_password)
-        user.role = global_role
-        user.is_active = True
-        user.division_id = division.id
-        _upsert_membership(db, project, user, division, project_role)
-        role_users[key] = user
-        generated_accounts.append({
-            "name": user.name,
-            "email": user.email,
-            "role": global_role.value,
-            "project_role": project_role,
-            "created": created,
-            "temporary_password": temporary_password,
-        })
+    if full_role_roster:
+        role_users, project_role_users, generated_accounts = upsert_full_project_roster(
+            db,
+            project=project,
+            project_slug=project_slug,
+            owner=owner,
+            initial_password=admin_password,
+        )
+    else:
+        account_specs = (
+            ("director", "Direktur Proyek", UserRole.DIRECTOR, "project_manager"),
+            ("manager", "Manajer Proyek", UserRole.MANAGER, "project_manager"),
+            ("staff", "Staf Lapangan", UserRole.STAFF, "site_engineer"),
+            ("subcontractor", "Staf Subkontraktor", UserRole.SUBCONTRACTOR, "subcontractor"),
+        )
+        role_users = {}
+        project_role_users = {}
+        generated_accounts = []
+        for key, label, global_role, project_role in account_specs:
+            email = f"{key}.{project_slug}@cpmis.example.com"
+            user = db.query(User).filter(User.email == email).first()
+            created = user is None
+            temporary_password = None
+            if not user:
+                temporary_password = admin_password or secrets.token_urlsafe(12)
+                user = User(
+                    name=f"{label} - {project_name}"[:100],
+                    email=email,
+                    password_hash=get_password_hash(temporary_password),
+                    role=global_role,
+                    is_active=True,
+                )
+                db.add(user)
+                db.flush()
+            elif admin_password:
+                user.password_hash = get_password_hash(admin_password)
+            user.role = global_role
+            user.is_active = True
+            user.division_id = division.id
+            _upsert_membership(db, project, user, division, project_role)
+            role_users[key] = user
+            project_role_users[project_role] = user
+            generated_accounts.append({
+                "name": user.name,
+                "email": user.email,
+                "role": global_role.value,
+                "project_role": project_role,
+                "created": created,
+                "temporary_password": temporary_password,
+            })
 
     field_user = role_users["staff"]
     if telegram_id:
@@ -249,7 +271,7 @@ def _upsert_core_project(
 
     _upsert_membership(db, project, owner, division, "project_manager")
     db.flush()
-    return owner, role_users, project, division, owner_created, generated_accounts
+    return owner, role_users, project_role_users, project, division, owner_created, generated_accounts
 
 
 def _upsert_tasks(
@@ -589,19 +611,42 @@ def import_project_dataset(
     admin_password: str,
     telegram_id: str | None = None,
 ) -> dict:
-    master, graph, examples = load_project_zip(content)
-    owner, role_users, project, division, owner_created, generated_accounts = _upsert_core_project(
+    master, graph, examples, demo_features = load_project_zip(content)
+    owner, role_users, project_role_users, project, division, owner_created, generated_accounts = _upsert_core_project(
         db,
         master,
         admin_email=admin_email.strip().lower(),
         admin_password=admin_password,
         telegram_id=(telegram_id or "").strip() or None,
+        full_role_roster=bool(demo_features.get("seed_all_project_roles")),
     )
     task_map, assignment_counts = _upsert_tasks(db, master, owner, role_users, project, division)
+    ai_role_task_count = 0
+    role_assignment_counts: dict[str, int] = {}
+    if demo_features.get("seed_all_project_roles"):
+        ai_role_task_count, role_assignment_counts = seed_ai_role_coverage_tasks(
+            db,
+            project=project,
+            owner=owner,
+            users_by_project_role=project_role_users,
+            data_date=_parse_date(demo_features.get("data_date")),
+        )
     db.commit()
 
     payload = _build_digital_twin_payload(master, graph, examples)
     graph_result = import_dataset(db, project.id, payload)
+    demo_result = {"demo_features_seeded": False}
+    if demo_features.get("enabled"):
+        from app.services.project_demo_seed import seed_project_demo
+
+        demo_result = seed_project_demo(
+            db,
+            project_id=project.id,
+            owner=owner,
+            role_users=role_users,
+            tasks_by_activity=task_map,
+            manifest=demo_features,
+        )
     return {
         "project_id": project.id,
         "project_name": project.project_name,
@@ -612,6 +657,10 @@ def import_project_dataset(
         "telegram_linked": bool(role_users["staff"].telegram_id),
         "generated_accounts": generated_accounts,
         "assignment_counts": assignment_counts,
-        "tasks_upserted": len(task_map),
+        "role_assignment_counts": role_assignment_counts,
+        "project_roles_created": len(project_role_users),
+        "ai_role_tasks": ai_role_task_count,
+        "tasks_upserted": len(task_map) + ai_role_task_count,
         **graph_result,
+        **demo_result,
     }

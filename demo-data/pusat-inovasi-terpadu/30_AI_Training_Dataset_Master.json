@@ -1,0 +1,1131 @@
+{
+  "dataset_version": "CPMIS-DEMO-2026.1",
+  "project_summary": {
+    "project_name": "Pusat Inovasi Terpadu Nusantara",
+    "project_code": "PITN-2026",
+    "location": "Tangerang Selatan, Banten",
+    "contract_value_idr": 187500000000,
+    "start": "2026-05-04T00:00:00",
+    "baseline_finish": "2027-06-30T00:00:00"
+  },
+  "performance_at_data_date": {
+    "data_date": "2026-08-12",
+    "planned_pct": 32.5,
+    "actual_pct": 28.7,
+    "variance_pct": -3.8
+  },
+  "linked_chains": [
+    {
+      "wbs": {
+        "wbs_code": "1.1",
+        "wbs_name": "Persiapan"
+      },
+      "boq": {
+        "boq_id": "BOQ-001",
+        "description": "Site setup selesai",
+        "unit": "ls",
+        "volume": 1,
+        "total_price_idr": 650085000.0
+      },
+      "activity": {
+        "activity_id": "ACT-001",
+        "name": "Mobilisasi dan persiapan area",
+        "discipline": "Persiapan",
+        "early_start": "2026-05-04T00:00:00",
+        "early_finish": "2026-05-15T00:00:00",
+        "progress_pct": 100,
+        "status": "complete",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 100,
+        "actual_cost_idr": 624081600.0
+      },
+      "resource": {
+        "manpower": 8
+      },
+      "equipment": {
+        "jenis": "Excavator mini"
+      },
+      "material": {
+        "material_code": "MAT-001",
+        "description": "Pagar proyek dan rambu K3",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "Tim Persiapan"
+      },
+      "risk": {
+        "risk_id": "RISK-001",
+        "risk_event": "Cuaca menghambat mobilisasi",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": []
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "2.1",
+        "wbs_name": "Struktur Bawah"
+      },
+      "boq": {
+        "boq_id": "BOQ-002",
+        "description": "Pengeboran dan pengecoran pile",
+        "unit": "m",
+        "volume": 1850,
+        "total_price_idr": 1457250000.0
+      },
+      "activity": {
+        "activity_id": "ACT-002",
+        "name": "Pekerjaan bored pile",
+        "discipline": "Struktur Bawah",
+        "early_start": "2026-05-16T00:00:00",
+        "early_finish": "2026-07-15T00:00:00",
+        "progress_pct": 82,
+        "status": "in progress",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 82,
+        "actual_cost_idr": 1147147200.0
+      },
+      "resource": {
+        "manpower": 12
+      },
+      "equipment": {
+        "jenis": "Bored pile rig"
+      },
+      "material": {
+        "material_code": "MAT-002",
+        "description": "Beton ready-mix fc' 35 MPa",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Beton Prima Nusantara"
+      },
+      "risk": {
+        "risk_id": "RISK-002",
+        "risk_event": "Keterlambatan hasil uji integritas pile",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-001|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "2.2",
+        "wbs_name": "Struktur Bawah"
+      },
+      "boq": {
+        "boq_id": "BOQ-003",
+        "description": "Pembesian dan pengecoran pile cap",
+        "unit": "m3",
+        "volume": 720,
+        "total_price_idr": 2011200000.0
+      },
+      "activity": {
+        "activity_id": "ACT-003",
+        "name": "Pile cap dan tie beam",
+        "discipline": "Struktur Bawah",
+        "early_start": "2026-06-20T00:00:00",
+        "early_finish": "2026-08-08T00:00:00",
+        "progress_pct": 64,
+        "status": "in progress",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 64,
+        "actual_cost_idr": 1235681280.0
+      },
+      "resource": {
+        "manpower": 16
+      },
+      "equipment": {
+        "jenis": "Concrete pump"
+      },
+      "material": {
+        "material_code": "MAT-003",
+        "description": "Baja tulangan BJTS 420B",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Beton Prima Nusantara"
+      },
+      "risk": {
+        "risk_id": "RISK-003",
+        "risk_event": "Area mock-up mengalami honeycomb",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-002|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "3.1",
+        "wbs_name": "Struktur Atas"
+      },
+      "boq": {
+        "boq_id": "BOQ-004",
+        "description": "Bekisting, pembesian, pengecoran kolom",
+        "unit": "m3",
+        "volume": 410,
+        "total_price_idr": 2634850000.0
+      },
+      "activity": {
+        "activity_id": "ACT-004",
+        "name": "Kolom struktur lantai dasar",
+        "discipline": "Struktur Atas",
+        "early_start": "2026-07-10T00:00:00",
+        "early_finish": "2026-08-25T00:00:00",
+        "progress_pct": 55,
+        "status": "in progress",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 55,
+        "actual_cost_idr": 1391200800.0
+      },
+      "resource": {
+        "manpower": 20
+      },
+      "equipment": {
+        "jenis": "Tower crane"
+      },
+      "material": {
+        "material_code": "MAT-004",
+        "description": "Beton fc' 40 MPa",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Beton Prima Nusantara"
+      },
+      "risk": {
+        "risk_id": "RISK-004",
+        "risk_event": "Produktivitas bekisting di bawah rencana",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-003|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "3.2",
+        "wbs_name": "Struktur Atas"
+      },
+      "boq": {
+        "boq_id": "BOQ-005",
+        "description": "Pekerjaan balok dan slab",
+        "unit": "m2",
+        "volume": 4250,
+        "total_price_idr": 3611250000.0
+      },
+      "activity": {
+        "activity_id": "ACT-005",
+        "name": "Balok dan slab lantai 2",
+        "discipline": "Struktur Atas",
+        "early_start": "2026-07-25T00:00:00",
+        "early_finish": "2026-09-10T00:00:00",
+        "progress_pct": 38,
+        "status": "in progress",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 38,
+        "actual_cost_idr": 1317384000.0
+      },
+      "resource": {
+        "manpower": 24
+      },
+      "equipment": {
+        "jenis": "Tower crane"
+      },
+      "material": {
+        "material_code": "MAT-005",
+        "description": "Plywood film faced 18 mm",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Beton Prima Nusantara"
+      },
+      "risk": {
+        "risk_id": "RISK-005",
+        "risk_event": "Keterlambatan siklus pengecoran",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-004|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "3.3",
+        "wbs_name": "Struktur Atas"
+      },
+      "boq": {
+        "boq_id": "BOQ-006",
+        "description": "Struktur atap dan dudukan peralatan",
+        "unit": "m2",
+        "volume": 1850,
+        "total_price_idr": 4057250000.0
+      },
+      "activity": {
+        "activity_id": "ACT-006",
+        "name": "Struktur atap dan rooftop",
+        "discipline": "Struktur Atas",
+        "early_start": "2026-09-11T00:00:00",
+        "early_finish": "2026-10-20T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 8
+      },
+      "equipment": {
+        "jenis": "Mobile crane"
+      },
+      "material": {
+        "material_code": "MAT-006",
+        "description": "Baja profil struktural",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Baja Fabrikasi Sentosa"
+      },
+      "risk": {
+        "risk_id": "RISK-006",
+        "risk_event": "Shop drawing belum final",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-005|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "4.1",
+        "wbs_name": "Arsitektur"
+      },
+      "boq": {
+        "boq_id": "BOQ-007",
+        "description": "Pasangan dinding dan plester",
+        "unit": "m2",
+        "volume": 6900,
+        "total_price_idr": 5136500000.0
+      },
+      "activity": {
+        "activity_id": "ACT-007",
+        "name": "Dinding bata ringan",
+        "discipline": "Arsitektur",
+        "early_start": "2026-08-01T00:00:00",
+        "early_finish": "2026-11-15T00:00:00",
+        "progress_pct": 22,
+        "status": "in progress",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 22,
+        "actual_cost_idr": 1084828800.0
+      },
+      "resource": {
+        "manpower": 12
+      },
+      "equipment": {
+        "jenis": "Material hoist"
+      },
+      "material": {
+        "material_code": "MAT-007",
+        "description": "Bata ringan AAC",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Arsitektur Karya"
+      },
+      "risk": {
+        "risk_id": "RISK-007",
+        "risk_event": "Akses material bertabrakan",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-006|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "4.2",
+        "wbs_name": "Arsitektur"
+      },
+      "boq": {
+        "boq_id": "BOQ-008",
+        "description": "Supply dan instalasi curtain wall",
+        "unit": "m2",
+        "volume": 4800,
+        "total_price_idr": 5608000000.0
+      },
+      "activity": {
+        "activity_id": "ACT-008",
+        "name": "Fasad aluminium dan kaca",
+        "discipline": "Arsitektur",
+        "early_start": "2026-10-01T00:00:00",
+        "early_finish": "2027-01-20T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 16
+      },
+      "equipment": {
+        "jenis": "Gondola"
+      },
+      "material": {
+        "material_code": "MAT-008",
+        "description": "Kaca low-e laminated",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Fasad Cemerlang"
+      },
+      "risk": {
+        "risk_id": "RISK-008",
+        "risk_event": "Lead time kaca impor",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-007|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "4.3",
+        "wbs_name": "Arsitektur"
+      },
+      "boq": {
+        "boq_id": "BOQ-009",
+        "description": "Aplikasi membran dan flood test",
+        "unit": "m2",
+        "volume": 2150,
+        "total_price_idr": 6032750000.0
+      },
+      "activity": {
+        "activity_id": "ACT-009",
+        "name": "Waterproofing toilet dan rooftop",
+        "discipline": "Arsitektur",
+        "early_start": "2026-08-20T00:00:00",
+        "early_finish": "2026-11-30T00:00:00",
+        "progress_pct": 15,
+        "status": "in progress",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 15,
+        "actual_cost_idr": 868716000.0
+      },
+      "resource": {
+        "manpower": 20
+      },
+      "equipment": {
+        "jenis": "Hand tools"
+      },
+      "material": {
+        "material_code": "MAT-009",
+        "description": "Membran waterproofing",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Arsitektur Karya"
+      },
+      "risk": {
+        "risk_id": "RISK-009",
+        "risk_event": "Flood test harus diulang",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-008|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "4.4",
+        "wbs_name": "Arsitektur"
+      },
+      "boq": {
+        "boq_id": "BOQ-010",
+        "description": "Rangka plafon dan finishing",
+        "unit": "m2",
+        "volume": 7200,
+        "total_price_idr": 7112000000.0
+      },
+      "activity": {
+        "activity_id": "ACT-010",
+        "name": "Plafon dan finishing interior",
+        "discipline": "Arsitektur",
+        "early_start": "2026-11-01T00:00:00",
+        "early_finish": "2027-03-15T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 24
+      },
+      "equipment": {
+        "jenis": "Scaffolding"
+      },
+      "material": {
+        "material_code": "MAT-010",
+        "description": "Gypsum board tahan api",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Interior Modular"
+      },
+      "risk": {
+        "risk_id": "RISK-010",
+        "risk_event": "Mock-up warna belum disetujui",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-009|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "5.1",
+        "wbs_name": "Elektrikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-011",
+        "description": "Supply panel MV/LV dan FAT",
+        "unit": "unit",
+        "volume": 6,
+        "total_price_idr": 7150510000.0
+      },
+      "activity": {
+        "activity_id": "ACT-011",
+        "name": "Supply panel listrik utama",
+        "discipline": "Elektrikal",
+        "early_start": "2026-07-01T00:00:00",
+        "early_finish": "2026-10-15T00:00:00",
+        "progress_pct": 10,
+        "status": "in progress",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 10,
+        "actual_cost_idr": 686448960.0
+      },
+      "resource": {
+        "manpower": 8
+      },
+      "equipment": {
+        "jenis": "Forklift"
+      },
+      "material": {
+        "material_code": "MAT-011",
+        "description": "Panel utama IEC 61439",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Mekanikal Energi Mandiri"
+      },
+      "risk": {
+        "risk_id": "RISK-011",
+        "risk_event": "Approval drawing panel terlambat",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-010|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "5.2",
+        "wbs_name": "Elektrikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-012",
+        "description": "Instalasi cable tray, feeder, dan grounding",
+        "unit": "m",
+        "volume": 12500,
+        "total_price_idr": 8862500000.0
+      },
+      "activity": {
+        "activity_id": "ACT-012",
+        "name": "Instalasi cable tray dan kabel",
+        "discipline": "Elektrikal",
+        "early_start": "2026-09-15T00:00:00",
+        "early_finish": "2027-02-10T00:00:00",
+        "progress_pct": 8,
+        "status": "in progress",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 8,
+        "actual_cost_idr": 680640000.0
+      },
+      "resource": {
+        "manpower": 12
+      },
+      "equipment": {
+        "jenis": "Scissor lift"
+      },
+      "material": {
+        "material_code": "MAT-012",
+        "description": "Kabel low smoke zero halogen",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Mekanikal Energi Mandiri"
+      },
+      "risk": {
+        "risk_id": "RISK-012",
+        "risk_event": "Konflik jalur dengan ducting",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-011|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "6.1",
+        "wbs_name": "Mekanikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-013",
+        "description": "Instalasi pipa air bersih dan air kotor",
+        "unit": "m",
+        "volume": 8800,
+        "total_price_idr": 9198000000.0
+      },
+      "activity": {
+        "activity_id": "ACT-013",
+        "name": "Instalasi plumbing dan sanitasi",
+        "discipline": "Mekanikal",
+        "early_start": "2026-09-01T00:00:00",
+        "early_finish": "2027-01-31T00:00:00",
+        "progress_pct": 5,
+        "status": "in progress",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 5,
+        "actual_cost_idr": 441504000.0
+      },
+      "resource": {
+        "manpower": 16
+      },
+      "equipment": {
+        "jenis": "Pipe threading machine"
+      },
+      "material": {
+        "material_code": "MAT-013",
+        "description": "Pipa PPR dan HDPE",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Mekanikal Energi Mandiri"
+      },
+      "risk": {
+        "risk_id": "RISK-013",
+        "risk_event": "Ruang shaft terbatas",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-012|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "6.2",
+        "wbs_name": "Mekanikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-014",
+        "description": "Fabrikasi dan instalasi ducting",
+        "unit": "m2",
+        "volume": 9600,
+        "total_price_idr": 9916000000.0
+      },
+      "activity": {
+        "activity_id": "ACT-014",
+        "name": "Instalasi ducting HVAC",
+        "discipline": "Mekanikal",
+        "early_start": "2026-10-01T00:00:00",
+        "early_finish": "2027-02-28T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 20
+      },
+      "equipment": {
+        "jenis": "Scissor lift"
+      },
+      "material": {
+        "material_code": "MAT-014",
+        "description": "Galvanized iron duct",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Mekanikal Energi Mandiri"
+      },
+      "risk": {
+        "risk_id": "RISK-014",
+        "risk_event": "Akses pemasangan ducting lantai 3",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-013|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "6.3",
+        "wbs_name": "Mekanikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-015",
+        "description": "Instalasi alarm, hydrant, dan sprinkler",
+        "unit": "ls",
+        "volume": 1,
+        "total_price_idr": 9750085000.0
+      },
+      "activity": {
+        "activity_id": "ACT-015",
+        "name": "Fire alarm dan fire fighting",
+        "discipline": "Mekanikal",
+        "early_start": "2026-11-01T00:00:00",
+        "early_finish": "2027-03-10T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 24
+      },
+      "equipment": {
+        "jenis": "Hydrotest pump"
+      },
+      "material": {
+        "material_code": "MAT-015",
+        "description": "Peralatan fire fighting bersertifikat",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Proteksi Api"
+      },
+      "risk": {
+        "risk_id": "RISK-015",
+        "risk_event": "Koordinasi cause-and-effect",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-014|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "7.1",
+        "wbs_name": "Transportasi Vertikal"
+      },
+      "boq": {
+        "boq_id": "BOQ-016",
+        "description": "Supply, instalasi, testing elevator",
+        "unit": "unit",
+        "volume": 5,
+        "total_price_idr": 10400425000.0
+      },
+      "activity": {
+        "activity_id": "ACT-016",
+        "name": "Supply dan instalasi elevator",
+        "discipline": "Transportasi Vertikal",
+        "early_start": "2026-09-01T00:00:00",
+        "early_finish": "2027-04-15T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 8
+      },
+      "equipment": {
+        "jenis": "Chain block"
+      },
+      "material": {
+        "material_code": "MAT-016",
+        "description": "Elevator 1600 kg",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Lift Nusantara"
+      },
+      "risk": {
+        "risk_id": "RISK-016",
+        "risk_event": "Lead time komponen elevator",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-015|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "8.1",
+        "wbs_name": "Eksternal"
+      },
+      "boq": {
+        "boq_id": "BOQ-017",
+        "description": "Landscape, drainase, dan hardscape",
+        "unit": "m2",
+        "volume": 5200,
+        "total_price_idr": 11492000000.0
+      },
+      "activity": {
+        "activity_id": "ACT-017",
+        "name": "Landscape dan pekerjaan luar",
+        "discipline": "Eksternal",
+        "early_start": "2027-02-01T00:00:00",
+        "early_finish": "2027-05-15T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 12
+      },
+      "equipment": {
+        "jenis": "Mini roller"
+      },
+      "material": {
+        "material_code": "MAT-017",
+        "description": "Paving block permeabel",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Landscape Hijau"
+      },
+      "risk": {
+        "risk_id": "RISK-017",
+        "risk_event": "Pekerjaan dipengaruhi cuaca",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-016|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "9.1",
+        "wbs_name": "Commissioning"
+      },
+      "boq": {
+        "boq_id": "BOQ-018",
+        "description": "Testing fungsi dan integrasi seluruh sistem",
+        "unit": "ls",
+        "volume": 1,
+        "total_price_idr": 11700085000.0
+      },
+      "activity": {
+        "activity_id": "ACT-018",
+        "name": "Integrated testing dan commissioning",
+        "discipline": "Commissioning",
+        "early_start": "2027-03-15T00:00:00",
+        "early_finish": "2027-05-31T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 16
+      },
+      "equipment": {
+        "jenis": "Testing instruments"
+      },
+      "material": {
+        "material_code": "MAT-018",
+        "description": "Peralatan testing terkalibrasi",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "PT Mekanikal Energi Mandiri"
+      },
+      "risk": {
+        "risk_id": "RISK-018",
+        "risk_event": "Kegagalan integrasi sistem",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-017|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "9.2",
+        "wbs_name": "Handover"
+      },
+      "boq": {
+        "boq_id": "BOQ-019",
+        "description": "Kompilasi as-built dan manual operasi",
+        "unit": "ls",
+        "volume": 1,
+        "total_price_idr": 12350085000.0
+      },
+      "activity": {
+        "activity_id": "ACT-019",
+        "name": "As-built drawing dan O&M manual",
+        "discipline": "Handover",
+        "early_start": "2027-03-01T00:00:00",
+        "early_finish": "2027-06-10T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "NO"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 20
+      },
+      "equipment": {
+        "jenis": "Workstation BIM"
+      },
+      "material": {
+        "material_code": "MAT-019",
+        "description": "Dokumen digital terkontrol",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "Tim Dokumen Proyek"
+      },
+      "risk": {
+        "risk_id": "RISK-019",
+        "risk_event": "Dokumen vendor belum lengkap",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-018|FS|0"
+        ]
+      }
+    },
+    {
+      "wbs": {
+        "wbs_code": "9.3",
+        "wbs_name": "Handover"
+      },
+      "boq": {
+        "boq_id": "BOQ-020",
+        "description": "Final inspection dan serah terima",
+        "unit": "ls",
+        "volume": 1,
+        "total_price_idr": 13000085000.0
+      },
+      "activity": {
+        "activity_id": "ACT-020",
+        "name": "Serah terima dan masa pemeliharaan",
+        "discipline": "Handover",
+        "early_start": "2027-06-01T00:00:00",
+        "early_finish": "2027-06-30T00:00:00",
+        "progress_pct": 0,
+        "status": "not started",
+        "is_critical": "YES"
+      },
+      "progress": {
+        "progress_pct": 0,
+        "actual_cost_idr": 0.0
+      },
+      "resource": {
+        "manpower": 24
+      },
+      "equipment": {
+        "jenis": "Inspection tools"
+      },
+      "material": {
+        "material_code": "MAT-020",
+        "description": "Dossier serah terima",
+        "quality_standard": "SNI dan spesifikasi teknis proyek yang berlaku",
+        "vendor": "Tim Proyek"
+      },
+      "risk": {
+        "risk_id": "RISK-020",
+        "risk_event": "Punch list belum ditutup",
+        "mitigation": "Pantau mingguan, tetapkan PIC, dan jalankan rencana mitigasi terukur."
+      },
+      "network": {
+        "predecessors": [
+          "ACT-019|FS|0"
+        ]
+      }
+    }
+  ],
+  "rules_engine": [
+    {
+      "rule_id": "RULE-SCH-001",
+      "kategori": "Scheduling",
+      "aturan": "Jika task critical terlambat lebih dari 2 hari",
+      "kondisi_if": "Jika task critical terlambat lebih dari 2 hari",
+      "aksi_then": "Buat alert dan eskalasi ke manager",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-HSE-001",
+      "kategori": "HSE",
+      "aturan": "Jika toolbox meeting belum dikonfirmasi",
+      "kondisi_if": "Jika toolbox meeting belum dikonfirmasi",
+      "aksi_then": "Blokir mulai pekerjaan",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-QLT-001",
+      "kategori": "Quality",
+      "aturan": "Jika material wajib approval belum disetujui",
+      "kondisi_if": "Jika material wajib approval belum disetujui",
+      "aksi_then": "Blokir mulai pekerjaan",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-QLT-002",
+      "kategori": "Quality",
+      "aturan": "Jika inspeksi wajib belum lulus",
+      "kondisi_if": "Jika inspeksi wajib belum lulus",
+      "aksi_then": "Blokir penyelesaian task",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-RSK-001",
+      "kategori": "Risk",
+      "aturan": "Jika NCR major masih terbuka",
+      "kondisi_if": "Jika NCR major masih terbuka",
+      "aksi_then": "Naikkan risk score task",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-CST-001",
+      "kategori": "Cost",
+      "aturan": "Jika actual cost melampaui budget 5 persen",
+      "kondisi_if": "Jika actual cost melampaui budget 5 persen",
+      "aksi_then": "Kirim peringatan cost overrun",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-RES-001",
+      "kategori": "Resource",
+      "aturan": "Jika manpower aktual di bawah 70 persen rencana",
+      "kondisi_if": "Jika manpower aktual di bawah 70 persen rencana",
+      "aksi_then": "Minta recovery plan",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-PRC-001",
+      "kategori": "Procurement",
+      "aturan": "Jika lead time material melewati kebutuhan",
+      "kondisi_if": "Jika lead time material melewati kebutuhan",
+      "aksi_then": "Evaluasi vendor alternatif",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-SCH-002",
+      "kategori": "Scheduling",
+      "aturan": "Jika predecessor belum selesai",
+      "kondisi_if": "Jika predecessor belum selesai",
+      "aksi_then": "Blokir task successor",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-QLT-003",
+      "kategori": "Quality",
+      "aturan": "Jika evidence foto kurang",
+      "kondisi_if": "Jika evidence foto kurang",
+      "aksi_then": "Kembalikan laporan untuk revisi",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-RSK-002",
+      "kategori": "Risk",
+      "aturan": "Jika RFI lewat due date",
+      "kondisi_if": "Jika RFI lewat due date",
+      "aksi_then": "Buat escalation communication",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    },
+    {
+      "rule_id": "RULE-GEN-001",
+      "kategori": "General",
+      "aturan": "Jika laporan disetujui",
+      "kondisi_if": "Jika laporan disetujui",
+      "aksi_then": "Terapkan volume ke kontrol task",
+      "parameter": "project_control",
+      "validasi": "automatic_or_manual",
+      "sumber_standar": "CPMIS Demo Governance",
+      "aktif": true
+    }
+  ]
+}

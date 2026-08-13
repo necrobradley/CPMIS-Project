@@ -34,6 +34,20 @@ role beserta password awalnya. Simpan password tersebut saat ditampilkan,
 karena password awal tidak dapat dibaca kembali dari database. Impor proyek
 berikutnya dilakukan melalui **Admin Console → Import Project Dataset**.
 
+### Paket dummy presentasi
+
+Paket demo lengkap tersedia pada:
+
+```text
+C:\Users\User\CPMIS-Project\demo-data\CPMIS_Demo_Pusat_Inovasi_2026.zip
+```
+
+Paket yang sama dapat diunduh dari halaman Setup atau Admin Console. Manifest
+demo di dalam ZIP mengisi task lintas role, laporan, approval, komunikasi,
+notifikasi, dokumen, vendor, produktivitas, inspeksi, NCR, handover, Digital
+Twin, dan audit trail. Isi Telegram ID staf saat mengimpor agar task lapangan
+dapat diperbarui melalui bot.
+
 ## Alur AI saat demo
 
 AI bekerja saat dokumen proyek diunggah, bukan saat akun dibuat. Halaman

@@ -21,6 +21,7 @@ from app.schemas.schemas import (
 )
 from app.services.storage_service import storage_service
 from app.services.ai_service import AIService
+from app.services.project_staffing import active_pic_roles
 from app.services import document_rag
 from app.services.n8n_service import n8n_service
 from app.services.audit_service import log_audit
@@ -390,7 +391,11 @@ async def preview_document_sync(
     if payload.include_tasks and not task_candidates:
         if AIService.is_configured("analysis"):
             try:
-                task_candidates = await ai_service.generate_tasks(analysis=analysis, project_id=document.project_id)
+                task_candidates = await ai_service.generate_tasks(
+                    analysis=analysis,
+                    project_id=document.project_id,
+                    available_roles=active_pic_roles(db, document.project_id),
+                )
                 generated_with_ai = bool(task_candidates)
             except Exception as exc:
                 warnings.append(f"Generate WBS belum berhasil: {str(exc)[:180]}")

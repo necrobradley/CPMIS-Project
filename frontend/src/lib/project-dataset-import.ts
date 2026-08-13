@@ -4,6 +4,10 @@ const REQUIRED_PROJECT_FILES = [
   '30_AI_Instruction_Dataset.jsonl',
 ] as const
 
+const OPTIONAL_PROJECT_FILES = [
+  'CPMIS_Demo_Features.json',
+] as const
+
 export async function prepareProjectDatasetArchive(source: File): Promise<File> {
   if (!source.name.toLowerCase().endsWith('.zip')) {
     throw new Error('Paket data proyek harus berupa file ZIP.')
@@ -24,6 +28,10 @@ export async function prepareProjectDatasetArchive(source: File): Promise<File> 
       throw new Error(`Paket data proyek tidak lengkap: ${filename} tidak ditemukan.`)
     }
     outputZip.file(filename, await entry.async('uint8array'))
+  }
+  for (const filename of OPTIONAL_PROJECT_FILES) {
+    const entry = inputZip.file(filename)
+    if (entry) outputZip.file(filename, await entry.async('uint8array'))
   }
 
   const blob = await outputZip.generateAsync({

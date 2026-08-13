@@ -39,7 +39,7 @@ SENSITIVE_RATE_LIMITS = sensitive_rate_limit_rules(settings)
 async def lifespan(app: FastAPI):
     """Startup & shutdown events."""
     # Startup
-    logger.info("DigiCom PMIS starting...")
+    logger.info("Rencanix starting...")
     production_errors = production_config_errors(settings)
     if production_errors:
         message = "Production config tidak aman: " + "; ".join(production_errors)
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("DigiCom PMIS shutting down...")
+    logger.info("Rencanix shutting down...")
 
 
 # -----------------------------------------------------------------------------
@@ -87,9 +87,9 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="""
-## DigiCom PMIS - Digital Project Communication Management Information System
+## Rencanix - Intelligent Project Control
 
-Communication control center untuk proyek konstruksi, terintegrasi AI, Telegram, audit trail, approval, dan n8n.
+Platform pengendalian proyek yang mengintegrasikan AI, Telegram, audit trail, approval, dan otomasi alur kerja.
 
 ### Fitur Utama:
 - **Authentication** - JWT-based login & role management

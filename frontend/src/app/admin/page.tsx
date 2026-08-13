@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { settingsApi, usersApi } from '@/lib/api'
+import { settingsApi, systemApi, usersApi } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/api-error'
 import { useAuthStore } from '@/lib/store'
 import ProjectDatasetImport from '@/components/ProjectDatasetImport'
 import {
@@ -14,7 +15,7 @@ import { cn, formatDateTime } from '@/lib/utils'
 import {
   Activity, AlertTriangle, Building2, CheckCircle2, FileSpreadsheet, Loader2, LockKeyhole,
   PackageCheck, Rocket, Search, ShieldCheck, SlidersHorizontal, ToggleLeft, ToggleRight, UserCog,
-  Upload,
+  Trash2, Upload, X,
 } from 'lucide-react'
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -49,6 +50,10 @@ export default function AdminConsolePage() {
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResults, setImportResults] = useState<ImportResult[]>([])
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetConfirmation, setResetConfirmation] = useState('')
   const isOwnerAdmin = user?.role === 'admin'
 
   const { data: featureFlags = [], isLoading, isError } = useQuery<FeatureFlag[]>({
@@ -153,6 +158,22 @@ export default function AdminConsolePage() {
     },
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Gagal import daftar pegawai'),
+  })
+  const resetOperationalData = useMutation({
+    mutationFn: () => systemApi.resetOperationalData({
+      owner_email: resetEmail.trim(),
+      password: resetPassword,
+      confirmation: resetConfirmation.trim(),
+    }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries()
+      setResetOpen(false)
+      setResetEmail('')
+      setResetPassword('')
+      setResetConfirmation('')
+      toast.success(response.data.message || 'Data operasional berhasil dikosongkan')
+    },
+    onError: (error: unknown) => toast.error(apiErrorMessage(error, 'Reset data operasional gagal')),
   })
 
   function submitImport(event: React.FormEvent) {
@@ -323,16 +344,16 @@ export default function AdminConsolePage() {
       <div className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-600">Commercial control plane</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-600">Pengelolaan layanan organisasi</p>
             <h2 className="text-xl font-bold text-slate-950">Tenant, Paket, Entitlement, dan Readiness</h2>
-            <p className="mt-1 text-sm text-slate-500">Fondasi awal untuk pilot berbayar sebelum tenant isolation penuh diterapkan.</p>
+            <p className="mt-1 text-sm text-slate-500">Kelola paket layanan, hak akses fitur, kapasitas penggunaan, dan kesiapan operasional setiap organisasi.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               className="input h-10 min-w-[220px] text-sm"
               value={newTenantName}
               onChange={(event) => setNewTenantName(event.target.value)}
-              placeholder="Nama tenant pilot"
+              placeholder="Nama organisasi"
             />
             <select
               className="input h-10 min-w-[180px] text-sm"
@@ -359,7 +380,7 @@ export default function AdminConsolePage() {
           <div className="card p-5 xl:col-span-2">
             <div className="flex items-center gap-2">
               <Rocket size={18} className="text-cyan-600" />
-              <h3 className="text-base font-semibold text-slate-900">Commercial readiness</h3>
+              <h3 className="text-base font-semibold text-slate-900">Kesiapan layanan komersial</h3>
             </div>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
               {(commercialReadiness?.checks || []).map((check) => (
@@ -409,7 +430,7 @@ export default function AdminConsolePage() {
           <div className="card p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Tenant pilot</h3>
+                <h3 className="text-base font-semibold text-slate-900">Organisasi terdaftar</h3>
                 <p className="mt-1 text-xs text-slate-500">Pilih tenant untuk melihat limit dan entitlement.</p>
               </div>
               <span className="badge badge-info">{commercialTenants.length} tenant</span>
@@ -436,7 +457,7 @@ export default function AdminConsolePage() {
               ))}
               {commercialTenants.length === 0 && (
                 <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-400">
-                  Belum ada tenant. Buat tenant pilot pertama dari form di atas.
+                  Belum ada organisasi. Tambahkan organisasi pertama melalui formulir di atas.
                 </div>
               )}
             </div>
@@ -652,6 +673,70 @@ export default function AdminConsolePage() {
 
       {!isLoading && !isError && filteredFlags.length === 0 && (
         <div className="card p-8 text-center text-sm text-slate-400">Tidak ada fitur yang cocok dengan filter.</div>
+      )}
+
+      <section className="overflow-hidden rounded-xl border border-rose-200 bg-white shadow-card">
+        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><Trash2 size={20} /></div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-rose-600">Zona pengelolaan data</p>
+              <h2 className="mt-1 text-base font-semibold text-slate-900">Kosongkan data operasional</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                Menghapus seluruh proyek, divisi, tugas, laporan, dokumen, komunikasi, approval, notifikasi, dan audit operasional. Akun pengguna serta konfigurasi platform tetap dipertahankan.
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={() => setResetOpen(true)} className="btn-danger shrink-0 justify-center border border-rose-200">
+            <Trash2 size={16} /> Reset data
+          </button>
+        </div>
+      </section>
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="reset-data-title">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700"><AlertTriangle size={21} /></div>
+                <div>
+                  <h2 id="reset-data-title" className="font-bold text-slate-950">Konfirmasi reset data operasional</h2>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">Tindakan ini tidak dapat dibatalkan setelah diproses.</p>
+                </div>
+              </div>
+              <button type="button" disabled={resetOperationalData.isPending} onClick={() => setResetOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup"><X size={18} /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                Akun login, paket layanan, entitlement, dan pengaturan fitur tidak akan dihapus. Anda tetap dapat masuk dan mengimpor proyek baru setelah reset.
+              </div>
+              <div>
+                <label className="label">Email owner aktif</label>
+                <input type="email" className="input" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} placeholder={user?.email || 'owner@perusahaan.id'} autoComplete="username" />
+              </div>
+              <div>
+                <label className="label">Password owner</label>
+                <input type="password" className="input" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder="Masukkan password akun aktif" autoComplete="current-password" />
+              </div>
+              <div>
+                <label className="label">Ketik RESET DATA</label>
+                <input className="input font-mono" value={resetConfirmation} onChange={(event) => setResetConfirmation(event.target.value)} placeholder="RESET DATA" />
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+              <button type="button" disabled={resetOperationalData.isPending} onClick={() => setResetOpen(false)} className="btn-secondary justify-center">Batal</button>
+              <button
+                type="button"
+                disabled={resetOperationalData.isPending || resetEmail.trim().toLowerCase() !== user?.email?.toLowerCase() || !resetPassword || resetConfirmation.trim() !== 'RESET DATA'}
+                onClick={() => resetOperationalData.mutate()}
+                className="btn-danger justify-center bg-rose-600 text-white hover:bg-rose-700"
+              >
+                {resetOperationalData.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                {resetOperationalData.isPending ? 'Mengosongkan data...' : 'Ya, kosongkan data'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

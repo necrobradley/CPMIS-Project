@@ -62,7 +62,7 @@ export default function AutomationPage() {
             <Workflow size={14} />
             Automation center
           </div>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">n8n realtime workflows</h1>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Otomasi alur kerja terintegrasi</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
             Panel ini memantau API, scheduler, Telegram, AI, dan webhook n8n dari backend CPMIS.
           </p>
@@ -91,7 +91,7 @@ export default function AutomationPage() {
             <Workflow size={21} />
           </div>
           <div className="text-3xl font-bold text-slate-950">{workflows.length}</div>
-          <p className="mt-1 text-sm text-slate-500">Workflow siap dipakai</p>
+          <p className="mt-1 text-sm text-slate-500">Alur kerja aktif dan siap mendukung proses operasional</p>
         </div>
         <div className="card p-5">
           <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">

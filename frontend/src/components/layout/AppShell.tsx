@@ -1,8 +1,8 @@
 'use client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
 import Sidebar from '@/components/layout/Sidebar'
+import BrandLoadingScreen from '@/components/ui/BrandLoadingScreen'
 import { useAuthStore } from '@/lib/store'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -13,16 +13,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!loading && !user) router.replace('/login')
   }, [user, loading, router])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 size={32} className="animate-spin text-brand-500" />
-          <p className="text-sm text-slate-500">Memuat...</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <BrandLoadingScreen />
 
   if (!user) return null
 

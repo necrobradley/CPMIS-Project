@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { HardHat, Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ForgotPasswordPage() {
@@ -22,11 +23,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
       <div className="w-full max-w-md animate-in">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white">
-            <HardHat size={20} />
-          </div>
-          <span className="font-bold text-lg text-slate-900">AI CPMIS</span>
+        <div className="mb-10 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-5">
+          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
         </div>
 
         {!sent ? (
