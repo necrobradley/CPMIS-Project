@@ -5,11 +5,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuthStore } from '@/lib/store'
 import toast from 'react-hot-toast'
-import { Building2, Lock, Mail, Loader2 } from 'lucide-react'
+import { Building2, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading]   = useState(false)
   const login  = useAuthStore(s => s.login)
   const router = useRouter()
@@ -71,7 +72,21 @@ export default function LoginPage() {
               </div>
               <div className="relative">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="input pl-9" placeholder="••••••••" required/>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e=>setPassword(e.target.value)}
+                  className="input pl-9 pr-10"
+                  placeholder="••••••••" required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(s => !s)}
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-2.5 text-base">
