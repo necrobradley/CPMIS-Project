@@ -19,8 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id" data-scroll-behavior="smooth">
       <head>
-        <title>DigiCom PMIS - Communication Control Center</title>
-        <meta name="description" content="Digital Project Communication Management Information System" />
+        <title>Rencanix | Intelligent Project Control</title>
+        <meta name="description" content="Platform pengendalian proyek, kolaborasi, pelaporan, dan analitik berbasis AI." />
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>

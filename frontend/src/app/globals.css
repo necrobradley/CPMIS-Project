@@ -126,6 +126,12 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes loading {
+  0% { transform: translateX(-120%); }
+  50% { transform: translateX(75%); }
+  100% { transform: translateX(260%); }
+}
+
 /* Stagger children */
 .stagger > *:nth-child(1) { animation-delay: 0.05s; }
 .stagger > *:nth-child(2) { animation-delay: 0.10s; }

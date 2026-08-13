@@ -24,10 +24,22 @@ type ProjectDatasetImportResult = {
     email: string
     role: string
     project_role: string
+    project_role_label?: string
+    can_be_task_pic?: boolean
     created: boolean
     temporary_password?: string | null
   }>
   assignment_counts?: Record<string, number>
+  role_assignment_counts?: Record<string, number>
+  project_roles_created?: number
+  ai_role_tasks?: number
+  demo_features_seeded?: boolean
+  demo_reports?: number
+  demo_documents?: number
+  demo_approvals?: number
+  demo_communications?: number
+  demo_notifications?: number
+  demo_vendors?: number
 }
 
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024
@@ -86,6 +98,13 @@ export default function ProjectDatasetImport() {
               Pilih ZIP proyek yang sudah disiapkan. Sistem akan membuat atau memperbarui proyek,
               akun lintas role, task/WBS, Digital Twin, rule, dan data reasoning tanpa menggandakan proyek.
             </p>
+            <a
+              href="/demo/CPMIS_Demo_Pusat_Inovasi_2026.zip"
+              download
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:text-violet-900"
+            >
+              <FileArchive size={13} /> Download paket dummy semua fitur
+            </a>
           </div>
         </div>
       </div>
@@ -122,7 +141,7 @@ export default function ProjectDatasetImport() {
       <div className="px-5 pb-5">
         <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Browser hanya mengirim berkas inti yang digunakan importer; lampiran besar di dalam ZIP tidak ikut dikirim.
+            Browser mengirim berkas inti dan manifest demo opsional; lampiran besar lain di dalam ZIP tidak ikut dikirim.
           </span>
           {dataset && (
             <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-slate-700">
@@ -162,10 +181,17 @@ export default function ProjectDatasetImport() {
 
             <div className="mt-4 flex flex-wrap gap-2 text-xs">
               <span className="badge-info">Akun staf utama: {result.field_user_email}</span>
+              <span className="badge-info">{result.project_roles_created || 0} role proyek</span>
+              <span className="badge-success">{result.ai_role_tasks || 0} task demo AI ber-PIC</span>
               <span className={result.telegram_linked ? 'badge-success' : 'badge-warning'}>
                 Telegram {result.telegram_linked ? 'terhubung' : 'belum diisi'}
               </span>
             </div>
+            {result.demo_features_seeded && (
+              <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800">
+                Data presentasi aktif: {result.demo_documents || 0} dokumen, {result.demo_reports || 0} laporan, {result.demo_approvals || 0} approval, {result.demo_communications || 0} komunikasi, {result.demo_notifications || 0} notifikasi, dan {result.demo_vendors || 0} vendor.
+              </div>
+            )}
             {result.generated_accounts && result.generated_accounts.length > 0 && (
               <div className="mt-4 overflow-x-auto rounded-lg border border-emerald-200 bg-white">
                 <table className="w-full min-w-[700px] text-left text-xs">
@@ -175,8 +201,8 @@ export default function ProjectDatasetImport() {
                       <tr key={account.email}>
                         <td className="px-3 py-2 font-medium text-slate-800">{account.email}</td>
                         <td className="px-3 py-2 text-slate-600">{account.role}</td>
-                        <td className="px-3 py-2 text-slate-600">{account.project_role}</td>
-                        <td className="px-3 py-2 text-slate-600">{result.assignment_counts?.[account.role] || 0}</td>
+                        <td className="px-3 py-2 text-slate-600">{account.project_role_label || account.project_role}{account.can_be_task_pic === false ? ' (reviewer)' : ''}</td>
+                        <td className="px-3 py-2 text-slate-600">{result.role_assignment_counts?.[account.project_role] || 0}</td>
                         <td className="px-3 py-2 font-mono text-slate-700">{account.temporary_password || 'Tidak diubah'}</td>
                       </tr>
                     ))}

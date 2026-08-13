@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuthStore } from '@/lib/store'
 import toast from 'react-hot-toast'
-import { Building2, Lock, Mail, Loader2, HardHat } from 'lucide-react'
+import { Building2, Lock, Mail, Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -31,12 +32,11 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-between w-[480px] bg-brand-900 p-12 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{backgroundImage:'radial-gradient(circle at 20% 50%, #38bdf8 0%, transparent 60%)'}} />
         <div className="relative">
-          <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center"><HardHat size={22}/></div>
-            <div><div className="font-bold text-lg">DigiCom PMIS</div><div className="text-brand-300 text-xs">Communication Control</div></div>
+          <div className="mb-16 flex h-20 items-center rounded-2xl bg-white px-6 shadow-lg shadow-slate-950/20">
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={440} height={135} className="h-auto w-full object-contain" priority />
           </div>
-          <h1 className="text-4xl font-bold leading-snug mb-4">Pusat Kendali Komunikasi Proyek Konstruksi</h1>
-          <p className="text-brand-300 text-base leading-relaxed">Issue, dokumen, approval, audit, AI, n8n, dan laporan Telegram dalam satu PMIS.</p>
+          <h1 className="mb-4 text-4xl font-bold leading-snug">Kendali Proyek yang Terhubung dan Terukur</h1>
+          <p className="text-base leading-relaxed text-brand-200">Kelola pekerjaan, dokumen, persetujuan, komunikasi lapangan, dan analitik AI dalam satu ruang kerja yang terintegrasi.</p>
         </div>
         <div className="relative grid grid-cols-2 gap-4">
           {[{label:'Proyek Aktif',value:'12+'},{label:'Laporan AI',value:'340+'},{label:'Task Otomatis',value:'1.2k+'},{label:'Efisiensi',value:'40%↑'}].map(s=>(
@@ -50,9 +50,8 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
         <div className="w-full max-w-md animate-in">
-          <div className="flex items-center gap-3 mb-10 lg:hidden">
-            <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white"><HardHat size={20}/></div>
-            <span className="font-bold text-lg text-slate-900">DigiCom PMIS</span>
+          <div className="mb-10 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-4 lg:hidden">
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
           </div>
           <h2 className="text-3xl font-bold text-slate-900 mb-1">Masuk</h2>
           <p className="text-slate-500 text-sm mb-8">Masukkan kredensial akun Anda</p>

@@ -36,12 +36,22 @@ export default function StakeholdersPage() {
   const projects = projectData ?? []
   const users = userData ?? []
   const stakeholders = useMemo(() => (
-    ([] as StakeholderItem[]).filter((stakeholder) => {
+    users.map((user): StakeholderItem => ({
+      name: user.name,
+      type: ROLE_LABELS[user.role] || user.role,
+      project: projects[0]?.project_name || 'Belum ditetapkan',
+      contact: user.email || user.phone || 'Kontak belum diisi',
+      telegram: user.telegram_id ? `ID ${user.telegram_id}` : 'Belum terhubung',
+      health: user.is_active ? 'Aktif' : 'Perlu follow-up',
+      lastUpdate: user.telegram_id
+        ? 'Siap menerima task dan mengirim progres melalui Telegram.'
+        : 'Hubungkan Telegram ID untuk mengaktifkan update lapangan.',
+    })).filter((stakeholder) => {
       const q = search.toLowerCase()
       return [stakeholder.name, stakeholder.type, stakeholder.project, stakeholder.contact]
         .some((value) => value.toLowerCase().includes(q))
     })
-  ), [search])
+  ), [projects, search, users])
 
   const connectedUsers = users.filter((user) => user.telegram_id).length
   const followUps = stakeholders.filter((stakeholder) => stakeholder.health !== 'Aktif').length
@@ -56,7 +66,7 @@ export default function StakeholdersPage() {
           </div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Stakeholder & communication hub</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Menggabungkan daftar stakeholder Kimi dengan user, proyek, Telegram, dan notifikasi CPMIS.
+            Menggabungkan user, proyek, Telegram, dan status tindak lanjut dalam satu daftar operasional.
           </p>
         </div>
         <div className="relative w-full xl:w-80">
@@ -133,7 +143,7 @@ export default function StakeholdersPage() {
             ))}
             {!stakeholders.length && (
               <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">
-                Belum ada data stakeholder eksternal.
+                Belum ada stakeholder atau user proyek.
               </div>
             )}
           </div>

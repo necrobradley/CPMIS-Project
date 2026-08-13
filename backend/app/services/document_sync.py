@@ -9,6 +9,11 @@ from app.models.user import (
     TaskMaterialSpecification, TaskSpecification,
 )
 from app.services.project_controls import mark_tasks_revision_impacted, recalculate_project_controls
+from app.services.project_staffing import (
+    active_pic_roles,
+    resolve_task_project_role,
+    select_task_pic,
+)
 
 
 PROJECT_FIELDS = {
@@ -134,6 +139,7 @@ def _serialize_task_candidate(candidate: Dict[str, Any]) -> Optional[Dict[str, A
         "priority": priority,
         "deadline": _date_value(candidate.get("deadline")),
         "division_name": _clean_text(candidate.get("division")),
+        "project_role": _clean_text(candidate.get("project_role")),
         "work_package": _clean_text(candidate.get("work_package") or candidate.get("division")),
         "location": _clean_text(candidate.get("location")),
         "acceptance_criteria": _clean_text(candidate.get("acceptance_criteria")) or "Wajib diverifikasi manager berdasarkan dokumen sumber.",
@@ -349,6 +355,7 @@ def _apply_task_data(
     data: Dict[str, Any],
     document_id: int,
     project_id: int,
+    assign_pic: bool = False,
 ) -> None:
     task.title = data["title"]
     task.description = data.get("description")
@@ -357,6 +364,17 @@ def _apply_task_data(
     division = _find_division(db, project_id, data.get("division_name"))
     if division:
         task.division_id = division.id
+    if assign_pic:
+        allowed_role_codes = {role["code"] for role in active_pic_roles(db, project_id)}
+        project_role = resolve_task_project_role(data, allowed_role_codes)
+        assignment = select_task_pic(
+            db,
+            project_id=project_id,
+            requested_project_role=project_role,
+        )
+        if assignment:
+            task.assigned_to = assignment.user_id
+            task.division_id = assignment.division_id
     if not task.specification:
         task.specification = TaskSpecification(
             wbs_code=data["wbs_code"],
@@ -423,7 +441,8 @@ def apply_sync_plan(
     for change in task_changes:
         data = change["after"]
         task = tasks_by_wbs.get(data["wbs_code"])
-        if not task:
+        created = task is None
+        if created:
             task = Task(
                 title=data["title"], project_id=project_id, created_by=actor_id,
                 ai_generated=True, ai_source=document.file_name,
@@ -434,7 +453,14 @@ def apply_sync_plan(
         else:
             applied["tasks_updated"] += 1
             revision_impacted_tasks.append(task)
-        _apply_task_data(db, task, data, document_id, project_id)
+        _apply_task_data(
+            db,
+            task,
+            data,
+            document_id,
+            project_id,
+            assign_pic=created,
+        )
         db.flush()
         tasks_by_wbs[data["wbs_code"]] = task
         parent_links.append((task, data.get("parent_wbs")))

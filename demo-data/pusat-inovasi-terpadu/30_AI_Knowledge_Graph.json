@@ -1,0 +1,1272 @@
+{
+  "nodes": [
+    {
+      "id": "PRJ:PITN-2026",
+      "type": "project",
+      "label": "Pusat Inovasi Terpadu Nusantara",
+      "location": "Tangerang Selatan, Banten"
+    },
+    {
+      "id": "WBS:1.1",
+      "type": "wbs",
+      "label": "Persiapan"
+    },
+    {
+      "id": "BOQ:BOQ-001",
+      "type": "boq",
+      "label": "Site setup selesai",
+      "value_idr": 650085000.0
+    },
+    {
+      "id": "ACT:ACT-001",
+      "type": "activity",
+      "label": "Mobilisasi dan persiapan area",
+      "progress_pct": 100
+    },
+    {
+      "id": "MAT:MAT-001",
+      "type": "material",
+      "label": "Pagar proyek dan rambu K3",
+      "vendor": "Tim Persiapan"
+    },
+    {
+      "id": "RSK:RISK-001",
+      "type": "risk",
+      "label": "Cuaca menghambat mobilisasi"
+    },
+    {
+      "id": "EQP:ACT-001",
+      "type": "equipment",
+      "label": "Excavator mini"
+    },
+    {
+      "id": "WBS:2.1",
+      "type": "wbs",
+      "label": "Struktur Bawah"
+    },
+    {
+      "id": "BOQ:BOQ-002",
+      "type": "boq",
+      "label": "Pengeboran dan pengecoran pile",
+      "value_idr": 1457250000.0
+    },
+    {
+      "id": "ACT:ACT-002",
+      "type": "activity",
+      "label": "Pekerjaan bored pile",
+      "progress_pct": 82
+    },
+    {
+      "id": "MAT:MAT-002",
+      "type": "material",
+      "label": "Beton ready-mix fc' 35 MPa",
+      "vendor": "PT Beton Prima Nusantara"
+    },
+    {
+      "id": "RSK:RISK-002",
+      "type": "risk",
+      "label": "Keterlambatan hasil uji integritas pile"
+    },
+    {
+      "id": "EQP:ACT-002",
+      "type": "equipment",
+      "label": "Bored pile rig"
+    },
+    {
+      "id": "WBS:2.2",
+      "type": "wbs",
+      "label": "Struktur Bawah"
+    },
+    {
+      "id": "BOQ:BOQ-003",
+      "type": "boq",
+      "label": "Pembesian dan pengecoran pile cap",
+      "value_idr": 2011200000.0
+    },
+    {
+      "id": "ACT:ACT-003",
+      "type": "activity",
+      "label": "Pile cap dan tie beam",
+      "progress_pct": 64
+    },
+    {
+      "id": "MAT:MAT-003",
+      "type": "material",
+      "label": "Baja tulangan BJTS 420B",
+      "vendor": "PT Beton Prima Nusantara"
+    },
+    {
+      "id": "RSK:RISK-003",
+      "type": "risk",
+      "label": "Area mock-up mengalami honeycomb"
+    },
+    {
+      "id": "EQP:ACT-003",
+      "type": "equipment",
+      "label": "Concrete pump"
+    },
+    {
+      "id": "WBS:3.1",
+      "type": "wbs",
+      "label": "Struktur Atas"
+    },
+    {
+      "id": "BOQ:BOQ-004",
+      "type": "boq",
+      "label": "Bekisting, pembesian, pengecoran kolom",
+      "value_idr": 2634850000.0
+    },
+    {
+      "id": "ACT:ACT-004",
+      "type": "activity",
+      "label": "Kolom struktur lantai dasar",
+      "progress_pct": 55
+    },
+    {
+      "id": "MAT:MAT-004",
+      "type": "material",
+      "label": "Beton fc' 40 MPa",
+      "vendor": "PT Beton Prima Nusantara"
+    },
+    {
+      "id": "RSK:RISK-004",
+      "type": "risk",
+      "label": "Produktivitas bekisting di bawah rencana"
+    },
+    {
+      "id": "EQP:ACT-004",
+      "type": "equipment",
+      "label": "Tower crane"
+    },
+    {
+      "id": "WBS:3.2",
+      "type": "wbs",
+      "label": "Struktur Atas"
+    },
+    {
+      "id": "BOQ:BOQ-005",
+      "type": "boq",
+      "label": "Pekerjaan balok dan slab",
+      "value_idr": 3611250000.0
+    },
+    {
+      "id": "ACT:ACT-005",
+      "type": "activity",
+      "label": "Balok dan slab lantai 2",
+      "progress_pct": 38
+    },
+    {
+      "id": "MAT:MAT-005",
+      "type": "material",
+      "label": "Plywood film faced 18 mm",
+      "vendor": "PT Beton Prima Nusantara"
+    },
+    {
+      "id": "RSK:RISK-005",
+      "type": "risk",
+      "label": "Keterlambatan siklus pengecoran"
+    },
+    {
+      "id": "EQP:ACT-005",
+      "type": "equipment",
+      "label": "Tower crane"
+    },
+    {
+      "id": "WBS:3.3",
+      "type": "wbs",
+      "label": "Struktur Atas"
+    },
+    {
+      "id": "BOQ:BOQ-006",
+      "type": "boq",
+      "label": "Struktur atap dan dudukan peralatan",
+      "value_idr": 4057250000.0
+    },
+    {
+      "id": "ACT:ACT-006",
+      "type": "activity",
+      "label": "Struktur atap dan rooftop",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-006",
+      "type": "material",
+      "label": "Baja profil struktural",
+      "vendor": "PT Baja Fabrikasi Sentosa"
+    },
+    {
+      "id": "RSK:RISK-006",
+      "type": "risk",
+      "label": "Shop drawing belum final"
+    },
+    {
+      "id": "EQP:ACT-006",
+      "type": "equipment",
+      "label": "Mobile crane"
+    },
+    {
+      "id": "WBS:4.1",
+      "type": "wbs",
+      "label": "Arsitektur"
+    },
+    {
+      "id": "BOQ:BOQ-007",
+      "type": "boq",
+      "label": "Pasangan dinding dan plester",
+      "value_idr": 5136500000.0
+    },
+    {
+      "id": "ACT:ACT-007",
+      "type": "activity",
+      "label": "Dinding bata ringan",
+      "progress_pct": 22
+    },
+    {
+      "id": "MAT:MAT-007",
+      "type": "material",
+      "label": "Bata ringan AAC",
+      "vendor": "PT Arsitektur Karya"
+    },
+    {
+      "id": "RSK:RISK-007",
+      "type": "risk",
+      "label": "Akses material bertabrakan"
+    },
+    {
+      "id": "EQP:ACT-007",
+      "type": "equipment",
+      "label": "Material hoist"
+    },
+    {
+      "id": "WBS:4.2",
+      "type": "wbs",
+      "label": "Arsitektur"
+    },
+    {
+      "id": "BOQ:BOQ-008",
+      "type": "boq",
+      "label": "Supply dan instalasi curtain wall",
+      "value_idr": 5608000000.0
+    },
+    {
+      "id": "ACT:ACT-008",
+      "type": "activity",
+      "label": "Fasad aluminium dan kaca",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-008",
+      "type": "material",
+      "label": "Kaca low-e laminated",
+      "vendor": "PT Fasad Cemerlang"
+    },
+    {
+      "id": "RSK:RISK-008",
+      "type": "risk",
+      "label": "Lead time kaca impor"
+    },
+    {
+      "id": "EQP:ACT-008",
+      "type": "equipment",
+      "label": "Gondola"
+    },
+    {
+      "id": "WBS:4.3",
+      "type": "wbs",
+      "label": "Arsitektur"
+    },
+    {
+      "id": "BOQ:BOQ-009",
+      "type": "boq",
+      "label": "Aplikasi membran dan flood test",
+      "value_idr": 6032750000.0
+    },
+    {
+      "id": "ACT:ACT-009",
+      "type": "activity",
+      "label": "Waterproofing toilet dan rooftop",
+      "progress_pct": 15
+    },
+    {
+      "id": "MAT:MAT-009",
+      "type": "material",
+      "label": "Membran waterproofing",
+      "vendor": "PT Arsitektur Karya"
+    },
+    {
+      "id": "RSK:RISK-009",
+      "type": "risk",
+      "label": "Flood test harus diulang"
+    },
+    {
+      "id": "EQP:ACT-009",
+      "type": "equipment",
+      "label": "Hand tools"
+    },
+    {
+      "id": "WBS:4.4",
+      "type": "wbs",
+      "label": "Arsitektur"
+    },
+    {
+      "id": "BOQ:BOQ-010",
+      "type": "boq",
+      "label": "Rangka plafon dan finishing",
+      "value_idr": 7112000000.0
+    },
+    {
+      "id": "ACT:ACT-010",
+      "type": "activity",
+      "label": "Plafon dan finishing interior",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-010",
+      "type": "material",
+      "label": "Gypsum board tahan api",
+      "vendor": "PT Interior Modular"
+    },
+    {
+      "id": "RSK:RISK-010",
+      "type": "risk",
+      "label": "Mock-up warna belum disetujui"
+    },
+    {
+      "id": "EQP:ACT-010",
+      "type": "equipment",
+      "label": "Scaffolding"
+    },
+    {
+      "id": "WBS:5.1",
+      "type": "wbs",
+      "label": "Elektrikal"
+    },
+    {
+      "id": "BOQ:BOQ-011",
+      "type": "boq",
+      "label": "Supply panel MV/LV dan FAT",
+      "value_idr": 7150510000.0
+    },
+    {
+      "id": "ACT:ACT-011",
+      "type": "activity",
+      "label": "Supply panel listrik utama",
+      "progress_pct": 10
+    },
+    {
+      "id": "MAT:MAT-011",
+      "type": "material",
+      "label": "Panel utama IEC 61439",
+      "vendor": "PT Mekanikal Energi Mandiri"
+    },
+    {
+      "id": "RSK:RISK-011",
+      "type": "risk",
+      "label": "Approval drawing panel terlambat"
+    },
+    {
+      "id": "EQP:ACT-011",
+      "type": "equipment",
+      "label": "Forklift"
+    },
+    {
+      "id": "WBS:5.2",
+      "type": "wbs",
+      "label": "Elektrikal"
+    },
+    {
+      "id": "BOQ:BOQ-012",
+      "type": "boq",
+      "label": "Instalasi cable tray, feeder, dan grounding",
+      "value_idr": 8862500000.0
+    },
+    {
+      "id": "ACT:ACT-012",
+      "type": "activity",
+      "label": "Instalasi cable tray dan kabel",
+      "progress_pct": 8
+    },
+    {
+      "id": "MAT:MAT-012",
+      "type": "material",
+      "label": "Kabel low smoke zero halogen",
+      "vendor": "PT Mekanikal Energi Mandiri"
+    },
+    {
+      "id": "RSK:RISK-012",
+      "type": "risk",
+      "label": "Konflik jalur dengan ducting"
+    },
+    {
+      "id": "EQP:ACT-012",
+      "type": "equipment",
+      "label": "Scissor lift"
+    },
+    {
+      "id": "WBS:6.1",
+      "type": "wbs",
+      "label": "Mekanikal"
+    },
+    {
+      "id": "BOQ:BOQ-013",
+      "type": "boq",
+      "label": "Instalasi pipa air bersih dan air kotor",
+      "value_idr": 9198000000.0
+    },
+    {
+      "id": "ACT:ACT-013",
+      "type": "activity",
+      "label": "Instalasi plumbing dan sanitasi",
+      "progress_pct": 5
+    },
+    {
+      "id": "MAT:MAT-013",
+      "type": "material",
+      "label": "Pipa PPR dan HDPE",
+      "vendor": "PT Mekanikal Energi Mandiri"
+    },
+    {
+      "id": "RSK:RISK-013",
+      "type": "risk",
+      "label": "Ruang shaft terbatas"
+    },
+    {
+      "id": "EQP:ACT-013",
+      "type": "equipment",
+      "label": "Pipe threading machine"
+    },
+    {
+      "id": "WBS:6.2",
+      "type": "wbs",
+      "label": "Mekanikal"
+    },
+    {
+      "id": "BOQ:BOQ-014",
+      "type": "boq",
+      "label": "Fabrikasi dan instalasi ducting",
+      "value_idr": 9916000000.0
+    },
+    {
+      "id": "ACT:ACT-014",
+      "type": "activity",
+      "label": "Instalasi ducting HVAC",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-014",
+      "type": "material",
+      "label": "Galvanized iron duct",
+      "vendor": "PT Mekanikal Energi Mandiri"
+    },
+    {
+      "id": "RSK:RISK-014",
+      "type": "risk",
+      "label": "Akses pemasangan ducting lantai 3"
+    },
+    {
+      "id": "EQP:ACT-014",
+      "type": "equipment",
+      "label": "Scissor lift"
+    },
+    {
+      "id": "WBS:6.3",
+      "type": "wbs",
+      "label": "Mekanikal"
+    },
+    {
+      "id": "BOQ:BOQ-015",
+      "type": "boq",
+      "label": "Instalasi alarm, hydrant, dan sprinkler",
+      "value_idr": 9750085000.0
+    },
+    {
+      "id": "ACT:ACT-015",
+      "type": "activity",
+      "label": "Fire alarm dan fire fighting",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-015",
+      "type": "material",
+      "label": "Peralatan fire fighting bersertifikat",
+      "vendor": "PT Proteksi Api"
+    },
+    {
+      "id": "RSK:RISK-015",
+      "type": "risk",
+      "label": "Koordinasi cause-and-effect"
+    },
+    {
+      "id": "EQP:ACT-015",
+      "type": "equipment",
+      "label": "Hydrotest pump"
+    },
+    {
+      "id": "WBS:7.1",
+      "type": "wbs",
+      "label": "Transportasi Vertikal"
+    },
+    {
+      "id": "BOQ:BOQ-016",
+      "type": "boq",
+      "label": "Supply, instalasi, testing elevator",
+      "value_idr": 10400425000.0
+    },
+    {
+      "id": "ACT:ACT-016",
+      "type": "activity",
+      "label": "Supply dan instalasi elevator",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-016",
+      "type": "material",
+      "label": "Elevator 1600 kg",
+      "vendor": "PT Lift Nusantara"
+    },
+    {
+      "id": "RSK:RISK-016",
+      "type": "risk",
+      "label": "Lead time komponen elevator"
+    },
+    {
+      "id": "EQP:ACT-016",
+      "type": "equipment",
+      "label": "Chain block"
+    },
+    {
+      "id": "WBS:8.1",
+      "type": "wbs",
+      "label": "Eksternal"
+    },
+    {
+      "id": "BOQ:BOQ-017",
+      "type": "boq",
+      "label": "Landscape, drainase, dan hardscape",
+      "value_idr": 11492000000.0
+    },
+    {
+      "id": "ACT:ACT-017",
+      "type": "activity",
+      "label": "Landscape dan pekerjaan luar",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-017",
+      "type": "material",
+      "label": "Paving block permeabel",
+      "vendor": "PT Landscape Hijau"
+    },
+    {
+      "id": "RSK:RISK-017",
+      "type": "risk",
+      "label": "Pekerjaan dipengaruhi cuaca"
+    },
+    {
+      "id": "EQP:ACT-017",
+      "type": "equipment",
+      "label": "Mini roller"
+    },
+    {
+      "id": "WBS:9.1",
+      "type": "wbs",
+      "label": "Commissioning"
+    },
+    {
+      "id": "BOQ:BOQ-018",
+      "type": "boq",
+      "label": "Testing fungsi dan integrasi seluruh sistem",
+      "value_idr": 11700085000.0
+    },
+    {
+      "id": "ACT:ACT-018",
+      "type": "activity",
+      "label": "Integrated testing dan commissioning",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-018",
+      "type": "material",
+      "label": "Peralatan testing terkalibrasi",
+      "vendor": "PT Mekanikal Energi Mandiri"
+    },
+    {
+      "id": "RSK:RISK-018",
+      "type": "risk",
+      "label": "Kegagalan integrasi sistem"
+    },
+    {
+      "id": "EQP:ACT-018",
+      "type": "equipment",
+      "label": "Testing instruments"
+    },
+    {
+      "id": "WBS:9.2",
+      "type": "wbs",
+      "label": "Handover"
+    },
+    {
+      "id": "BOQ:BOQ-019",
+      "type": "boq",
+      "label": "Kompilasi as-built dan manual operasi",
+      "value_idr": 12350085000.0
+    },
+    {
+      "id": "ACT:ACT-019",
+      "type": "activity",
+      "label": "As-built drawing dan O&M manual",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-019",
+      "type": "material",
+      "label": "Dokumen digital terkontrol",
+      "vendor": "Tim Dokumen Proyek"
+    },
+    {
+      "id": "RSK:RISK-019",
+      "type": "risk",
+      "label": "Dokumen vendor belum lengkap"
+    },
+    {
+      "id": "EQP:ACT-019",
+      "type": "equipment",
+      "label": "Workstation BIM"
+    },
+    {
+      "id": "WBS:9.3",
+      "type": "wbs",
+      "label": "Handover"
+    },
+    {
+      "id": "BOQ:BOQ-020",
+      "type": "boq",
+      "label": "Final inspection dan serah terima",
+      "value_idr": 13000085000.0
+    },
+    {
+      "id": "ACT:ACT-020",
+      "type": "activity",
+      "label": "Serah terima dan masa pemeliharaan",
+      "progress_pct": 0
+    },
+    {
+      "id": "MAT:MAT-020",
+      "type": "material",
+      "label": "Dossier serah terima",
+      "vendor": "Tim Proyek"
+    },
+    {
+      "id": "RSK:RISK-020",
+      "type": "risk",
+      "label": "Punch list belum ditutup"
+    },
+    {
+      "id": "EQP:ACT-020",
+      "type": "equipment",
+      "label": "Inspection tools"
+    }
+  ],
+  "edges": [
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:1.1"
+    },
+    {
+      "from": "WBS:1.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-001"
+    },
+    {
+      "from": "BOQ:BOQ-001",
+      "rel": "executed_by",
+      "to": "ACT:ACT-001"
+    },
+    {
+      "from": "ACT:ACT-001",
+      "rel": "uses_material",
+      "to": "MAT:MAT-001"
+    },
+    {
+      "from": "ACT:ACT-001",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-001"
+    },
+    {
+      "from": "ACT:ACT-001",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-001"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:2.1"
+    },
+    {
+      "from": "WBS:2.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-002"
+    },
+    {
+      "from": "BOQ:BOQ-002",
+      "rel": "executed_by",
+      "to": "ACT:ACT-002"
+    },
+    {
+      "from": "ACT:ACT-002",
+      "rel": "uses_material",
+      "to": "MAT:MAT-002"
+    },
+    {
+      "from": "ACT:ACT-002",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-002"
+    },
+    {
+      "from": "ACT:ACT-002",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-002"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:2.2"
+    },
+    {
+      "from": "WBS:2.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-003"
+    },
+    {
+      "from": "BOQ:BOQ-003",
+      "rel": "executed_by",
+      "to": "ACT:ACT-003"
+    },
+    {
+      "from": "ACT:ACT-003",
+      "rel": "uses_material",
+      "to": "MAT:MAT-003"
+    },
+    {
+      "from": "ACT:ACT-003",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-003"
+    },
+    {
+      "from": "ACT:ACT-003",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-003"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:3.1"
+    },
+    {
+      "from": "WBS:3.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-004"
+    },
+    {
+      "from": "BOQ:BOQ-004",
+      "rel": "executed_by",
+      "to": "ACT:ACT-004"
+    },
+    {
+      "from": "ACT:ACT-004",
+      "rel": "uses_material",
+      "to": "MAT:MAT-004"
+    },
+    {
+      "from": "ACT:ACT-004",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-004"
+    },
+    {
+      "from": "ACT:ACT-004",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-004"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:3.2"
+    },
+    {
+      "from": "WBS:3.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-005"
+    },
+    {
+      "from": "BOQ:BOQ-005",
+      "rel": "executed_by",
+      "to": "ACT:ACT-005"
+    },
+    {
+      "from": "ACT:ACT-005",
+      "rel": "uses_material",
+      "to": "MAT:MAT-005"
+    },
+    {
+      "from": "ACT:ACT-005",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-005"
+    },
+    {
+      "from": "ACT:ACT-005",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-005"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:3.3"
+    },
+    {
+      "from": "WBS:3.3",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-006"
+    },
+    {
+      "from": "BOQ:BOQ-006",
+      "rel": "executed_by",
+      "to": "ACT:ACT-006"
+    },
+    {
+      "from": "ACT:ACT-006",
+      "rel": "uses_material",
+      "to": "MAT:MAT-006"
+    },
+    {
+      "from": "ACT:ACT-006",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-006"
+    },
+    {
+      "from": "ACT:ACT-006",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-006"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:4.1"
+    },
+    {
+      "from": "WBS:4.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-007"
+    },
+    {
+      "from": "BOQ:BOQ-007",
+      "rel": "executed_by",
+      "to": "ACT:ACT-007"
+    },
+    {
+      "from": "ACT:ACT-007",
+      "rel": "uses_material",
+      "to": "MAT:MAT-007"
+    },
+    {
+      "from": "ACT:ACT-007",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-007"
+    },
+    {
+      "from": "ACT:ACT-007",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-007"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:4.2"
+    },
+    {
+      "from": "WBS:4.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-008"
+    },
+    {
+      "from": "BOQ:BOQ-008",
+      "rel": "executed_by",
+      "to": "ACT:ACT-008"
+    },
+    {
+      "from": "ACT:ACT-008",
+      "rel": "uses_material",
+      "to": "MAT:MAT-008"
+    },
+    {
+      "from": "ACT:ACT-008",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-008"
+    },
+    {
+      "from": "ACT:ACT-008",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-008"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:4.3"
+    },
+    {
+      "from": "WBS:4.3",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-009"
+    },
+    {
+      "from": "BOQ:BOQ-009",
+      "rel": "executed_by",
+      "to": "ACT:ACT-009"
+    },
+    {
+      "from": "ACT:ACT-009",
+      "rel": "uses_material",
+      "to": "MAT:MAT-009"
+    },
+    {
+      "from": "ACT:ACT-009",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-009"
+    },
+    {
+      "from": "ACT:ACT-009",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-009"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:4.4"
+    },
+    {
+      "from": "WBS:4.4",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-010"
+    },
+    {
+      "from": "BOQ:BOQ-010",
+      "rel": "executed_by",
+      "to": "ACT:ACT-010"
+    },
+    {
+      "from": "ACT:ACT-010",
+      "rel": "uses_material",
+      "to": "MAT:MAT-010"
+    },
+    {
+      "from": "ACT:ACT-010",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-010"
+    },
+    {
+      "from": "ACT:ACT-010",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-010"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:5.1"
+    },
+    {
+      "from": "WBS:5.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-011"
+    },
+    {
+      "from": "BOQ:BOQ-011",
+      "rel": "executed_by",
+      "to": "ACT:ACT-011"
+    },
+    {
+      "from": "ACT:ACT-011",
+      "rel": "uses_material",
+      "to": "MAT:MAT-011"
+    },
+    {
+      "from": "ACT:ACT-011",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-011"
+    },
+    {
+      "from": "ACT:ACT-011",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-011"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:5.2"
+    },
+    {
+      "from": "WBS:5.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-012"
+    },
+    {
+      "from": "BOQ:BOQ-012",
+      "rel": "executed_by",
+      "to": "ACT:ACT-012"
+    },
+    {
+      "from": "ACT:ACT-012",
+      "rel": "uses_material",
+      "to": "MAT:MAT-012"
+    },
+    {
+      "from": "ACT:ACT-012",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-012"
+    },
+    {
+      "from": "ACT:ACT-012",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-012"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:6.1"
+    },
+    {
+      "from": "WBS:6.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-013"
+    },
+    {
+      "from": "BOQ:BOQ-013",
+      "rel": "executed_by",
+      "to": "ACT:ACT-013"
+    },
+    {
+      "from": "ACT:ACT-013",
+      "rel": "uses_material",
+      "to": "MAT:MAT-013"
+    },
+    {
+      "from": "ACT:ACT-013",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-013"
+    },
+    {
+      "from": "ACT:ACT-013",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-013"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:6.2"
+    },
+    {
+      "from": "WBS:6.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-014"
+    },
+    {
+      "from": "BOQ:BOQ-014",
+      "rel": "executed_by",
+      "to": "ACT:ACT-014"
+    },
+    {
+      "from": "ACT:ACT-014",
+      "rel": "uses_material",
+      "to": "MAT:MAT-014"
+    },
+    {
+      "from": "ACT:ACT-014",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-014"
+    },
+    {
+      "from": "ACT:ACT-014",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-014"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:6.3"
+    },
+    {
+      "from": "WBS:6.3",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-015"
+    },
+    {
+      "from": "BOQ:BOQ-015",
+      "rel": "executed_by",
+      "to": "ACT:ACT-015"
+    },
+    {
+      "from": "ACT:ACT-015",
+      "rel": "uses_material",
+      "to": "MAT:MAT-015"
+    },
+    {
+      "from": "ACT:ACT-015",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-015"
+    },
+    {
+      "from": "ACT:ACT-015",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-015"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:7.1"
+    },
+    {
+      "from": "WBS:7.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-016"
+    },
+    {
+      "from": "BOQ:BOQ-016",
+      "rel": "executed_by",
+      "to": "ACT:ACT-016"
+    },
+    {
+      "from": "ACT:ACT-016",
+      "rel": "uses_material",
+      "to": "MAT:MAT-016"
+    },
+    {
+      "from": "ACT:ACT-016",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-016"
+    },
+    {
+      "from": "ACT:ACT-016",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-016"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:8.1"
+    },
+    {
+      "from": "WBS:8.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-017"
+    },
+    {
+      "from": "BOQ:BOQ-017",
+      "rel": "executed_by",
+      "to": "ACT:ACT-017"
+    },
+    {
+      "from": "ACT:ACT-017",
+      "rel": "uses_material",
+      "to": "MAT:MAT-017"
+    },
+    {
+      "from": "ACT:ACT-017",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-017"
+    },
+    {
+      "from": "ACT:ACT-017",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-017"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:9.1"
+    },
+    {
+      "from": "WBS:9.1",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-018"
+    },
+    {
+      "from": "BOQ:BOQ-018",
+      "rel": "executed_by",
+      "to": "ACT:ACT-018"
+    },
+    {
+      "from": "ACT:ACT-018",
+      "rel": "uses_material",
+      "to": "MAT:MAT-018"
+    },
+    {
+      "from": "ACT:ACT-018",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-018"
+    },
+    {
+      "from": "ACT:ACT-018",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-018"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:9.2"
+    },
+    {
+      "from": "WBS:9.2",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-019"
+    },
+    {
+      "from": "BOQ:BOQ-019",
+      "rel": "executed_by",
+      "to": "ACT:ACT-019"
+    },
+    {
+      "from": "ACT:ACT-019",
+      "rel": "uses_material",
+      "to": "MAT:MAT-019"
+    },
+    {
+      "from": "ACT:ACT-019",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-019"
+    },
+    {
+      "from": "ACT:ACT-019",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-019"
+    },
+    {
+      "from": "PRJ:PITN-2026",
+      "rel": "has_wbs",
+      "to": "WBS:9.3"
+    },
+    {
+      "from": "WBS:9.3",
+      "rel": "has_boq",
+      "to": "BOQ:BOQ-020"
+    },
+    {
+      "from": "BOQ:BOQ-020",
+      "rel": "executed_by",
+      "to": "ACT:ACT-020"
+    },
+    {
+      "from": "ACT:ACT-020",
+      "rel": "uses_material",
+      "to": "MAT:MAT-020"
+    },
+    {
+      "from": "ACT:ACT-020",
+      "rel": "uses_equipment",
+      "to": "EQP:ACT-020"
+    },
+    {
+      "from": "ACT:ACT-020",
+      "rel": "exposed_to",
+      "to": "RSK:RISK-020"
+    }
+  ]
+}

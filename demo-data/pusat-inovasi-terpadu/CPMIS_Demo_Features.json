@@ -1,0 +1,56 @@
+{
+  "enabled": true,
+  "profile": "full_feature_presentation",
+  "seed_all_project_roles": true,
+  "data_date": "2026-08-12T09:00:00",
+  "blocked_activity_ids": [
+    "ACT-003"
+  ],
+  "critical_activity_ids": [
+    "ACT-002",
+    "ACT-004",
+    "ACT-008",
+    "ACT-011",
+    "ACT-014"
+  ],
+  "documents": [
+    {
+      "file_name": "01_Project_Brief_Demo.txt",
+      "content": "Pusat Inovasi Terpadu Nusantara adalah proyek gedung riset dan kolaborasi. Nilai kontrak Rp187,5 miliar. Target utama adalah penyelesaian struktur, fasad, MEP, commissioning, dan serah terima pada Juni 2027. Risiko utama mencakup lead time material, konflik akses, koordinasi lintas disiplin, dan kelengkapan dokumen vendor.",
+      "ai_analysis": {
+        "project_name": "Pusat Inovasi Terpadu Nusantara",
+        "risks": [
+          "Lead time material",
+          "Koordinasi lintas disiplin"
+        ],
+        "generated_for_demo": true
+      }
+    },
+    {
+      "file_name": "02_Quality_and_HSE_Plan_Demo.txt",
+      "content": "Setiap pekerjaan wajib melalui toolbox meeting, pemeriksaan APD, persetujuan material, inspeksi pekerjaan, bukti foto, dan penutupan NCR. Pekerjaan kritis tidak boleh dimulai apabila material atau predecessor belum memenuhi gate.",
+      "ai_analysis": {
+        "key_requirements": [
+          "Toolbox meeting",
+          "Material approval",
+          "Inspection passed"
+        ],
+        "generated_for_demo": true
+      }
+    },
+    {
+      "file_name": "03_Telegram_Demo_Guide.txt",
+      "content": "Untuk update Telegram, jalankan /start lalu /tasks atau /report. Pilih task, kirim laporan berisi kode WBS, progres, volume, pekerja, cuaca, dan kendala. Kirim foto sebagai evidence lalu jalankan /submit. Data akan muncul pada halaman Reports di website.",
+      "ai_analysis": {
+        "channel": "telegram",
+        "workflow": [
+          "select_task",
+          "send_progress",
+          "upload_evidence",
+          "submit"
+        ],
+        "generated_for_demo": true
+      }
+    }
+  ]
+}
