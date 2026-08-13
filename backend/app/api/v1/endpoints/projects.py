@@ -26,6 +26,7 @@ from app.services.project_role_catalog import (
 )
 from app.services.report_workflow import ensure_project_access
 from app.services.feature_flags import bootstrap_project_feature_entitlements
+from app.services.project_dataset import sync_dataset_task_divisions
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 FINANCIAL_ROLES = (UserRole.OWNER, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)
@@ -52,6 +53,7 @@ def _project_response(project: Project, user: User) -> dict:
         "start_date": project.start_date,
         "end_date": project.end_date,
         "status": project.status,
+        "plan_key": project.plan_key,
         "owner_id": project.owner_id,
         "progress_percent": project.progress_percent,
         "created_at": project.created_at,
@@ -415,6 +417,9 @@ def list_divisions(
     if not project:
         raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
     ensure_project_access(current_user, project)
+    division_sync = sync_dataset_task_divisions(db, project_id)
+    if division_sync["tasks_updated"] or division_sync["divisions_created"]:
+        db.commit()
     query = db.query(Division).filter(Division.project_id == project_id)
     if current_user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR):
         division_ids = _staff_accessible_division_ids(db, project_id, current_user)

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.user import FeatureFlag, Project, ProjectFeatureEntitlement
+from app.services.commercial import get_plan, plan_feature_enabled
 
 
 DEFAULT_FEATURE_FLAGS = [
@@ -210,3 +211,32 @@ def bootstrap_project_feature_entitlements(
         existing[flag.feature_key] = entitlement
     db.flush()
     return [existing[flag.feature_key] for flag in flags]
+
+
+def apply_project_plan_entitlements(
+    db: Session,
+    project: Project,
+    plan_key: str,
+    updated_by: int | None = None,
+) -> tuple[int, int]:
+    """Terapkan paket sebagai pilihan entitlement awal untuk tepat satu proyek."""
+    plan = get_plan(plan_key)
+    if plan_key not in {"starter", "professional", "enterprise"}:
+        raise ValueError("Paket proyek tidak valid")
+
+    entitlements = {
+        item.feature_key: item
+        for item in bootstrap_project_feature_entitlements(db, project, updated_by)
+    }
+    flags = db.query(FeatureFlag).order_by(FeatureFlag.category, FeatureFlag.label).all()
+    enabled_count = 0
+    for flag in flags:
+        enabled = plan_feature_enabled(plan_key, flag.feature_key, flag.is_core)
+        entitlement = entitlements[flag.feature_key]
+        entitlement.enabled = enabled
+        entitlement.updated_by = updated_by
+        if enabled and flag.enabled:
+            enabled_count += 1
+    project.plan_key = plan_key
+    db.flush()
+    return enabled_count, len(flags)

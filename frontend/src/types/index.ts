@@ -20,6 +20,7 @@ export interface Project {
   start_date?:      string
   end_date?:        string
   status:           ProjectStatus
+  plan_key?:        CommercialPlanKey | null
   owner_id:         number
   progress_percent: number
   created_at:       string

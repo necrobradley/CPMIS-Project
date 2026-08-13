@@ -76,7 +76,11 @@ export default function ProjectTreePage() {
     queryKey: ['projects'],
     queryFn: async () => (await projectsApi.list()).data,
   })
-  const { data: divisions = [], isLoading: divisionsLoading } = useQuery<Division[]>({
+  const {
+    data: divisions = [],
+    isLoading: divisionsLoading,
+    isSuccess: divisionsReady,
+  } = useQuery<Division[]>({
     queryKey: ['divisions', projectId],
     queryFn: async () => projectId ? (await projectsApi.divisions(Number(projectId))).data : [],
     enabled: Boolean(projectId),
@@ -87,7 +91,7 @@ export default function ProjectTreePage() {
       project_id: Number(projectId),
       ...(isStaff ? { scope: 'division' } : {}),
     })).data : [],
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && divisionsReady,
   })
 
   useEffect(() => {

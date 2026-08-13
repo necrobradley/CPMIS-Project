@@ -34,7 +34,7 @@ export default function VerifyEmailClient() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md animate-in">
-        <div className="mb-8 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-5"><Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority /></div>
+        <div className="mb-8 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-5"><Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="mx-auto h-auto w-full max-w-[240px] object-contain" priority /></div>
         <div className="card p-8 text-center">
           <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${state === 'success' ? 'bg-emerald-100 text-emerald-600' : state === 'error' ? 'bg-rose-100 text-rose-600' : 'bg-sky-100 text-sky-600'}`}>
             {state === 'loading' ? <Loader2 size={31} className="animate-spin" /> : state === 'success' ? <CheckCircle2 size={31} /> : <XCircle size={31} />}

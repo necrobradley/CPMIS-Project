@@ -114,6 +114,12 @@ body {
   .section-title {
     @apply text-sm font-semibold text-slate-500 uppercase tracking-widest mb-3;
   }
+
+  .metric-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* ── Animations ── */

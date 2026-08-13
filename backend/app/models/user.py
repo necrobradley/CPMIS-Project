@@ -218,6 +218,7 @@ class Project(Base):
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     status = Column(Enum(ProjectStatus), default=ProjectStatus.PLANNING)
+    plan_key = Column(String(40), nullable=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     progress_percent = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)

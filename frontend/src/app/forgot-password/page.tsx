@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
       <div className="w-full max-w-md animate-in">
         <div className="mb-10 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-5">
-          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
+          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="mx-auto h-auto w-full max-w-[240px] object-contain" priority />
         </div>
 
         {!sent ? (

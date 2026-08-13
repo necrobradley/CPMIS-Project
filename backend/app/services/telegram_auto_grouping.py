@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Iterable
 
 from sqlalchemy import or_
@@ -15,7 +16,6 @@ from app.models.user import (
     Task,
     TaskStatus,
     User,
-    UserRole,
 )
 from app.services.report_workflow import can_access_task
 
@@ -177,15 +177,14 @@ def merge_ai_report_fields(base: TelegramReportFields, payload: dict | None) -> 
 
 
 def accessible_open_tasks(db: Session, user: User) -> list[Task]:
-    query = db.query(Task).filter(Task.status != TaskStatus.DONE)
-    if user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR):
-        query = query.filter(
-            Task.assigned_to == user.id,
-            or_(
-                Task.approval_status == ApprovalStatus.APPROVED.value,
-                Task.approval_status.is_(None),
-            ),
-        )
+    query = db.query(Task).filter(
+        Task.status != TaskStatus.DONE,
+        Task.assigned_to == user.id,
+        or_(
+            Task.approval_status == ApprovalStatus.APPROVED.value,
+            Task.approval_status.is_(None),
+        ),
+    )
     tasks = query.all()
     return [task for task in tasks if can_access_task(user, task)]
 
@@ -289,8 +288,8 @@ def create_report_draft(
     fields: TelegramReportFields,
     telegram_message_id: str | None = None,
 ) -> DailyReport:
-    if user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR) and task.assigned_to != user.id:
-        raise ValueError("Staff hanya dapat membuat laporan Telegram untuk task yang ditugaskan kepadanya")
+    if task.assigned_to != user.id:
+        raise ValueError("Laporan Telegram hanya dapat dibuat untuk task yang ditugaskan kepada pengguna")
     report = DailyReport(
         project_id=task.project_id,
         user_id=user.id,
@@ -320,6 +319,86 @@ def create_report_draft(
             confirmed=bool(re.search(pattern, lowered)),
             note="Auto grouping Telegram",
         ))
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+def open_report_draft(
+    db: Session,
+    user: User,
+    task: Task,
+    telegram_message_id: str | None = None,
+) -> DailyReport:
+    """Persist the Telegram task selection before the next webhook update arrives."""
+    if task.assigned_to != user.id:
+        raise ValueError("Task bukan assignment langsung pengguna")
+    existing = db.query(DailyReport).join(DailyReportWorkflow).filter(
+        DailyReport.user_id == user.id,
+        DailyReportWorkflow.task_id == task.id,
+        DailyReportWorkflow.status.in_((ReportStatus.DRAFT, ReportStatus.NEEDS_REVISION)),
+    ).order_by(DailyReport.created_at.desc(), DailyReport.id.desc()).first()
+    if existing and not (existing.report_text or "").strip() and not existing.evidence:
+        # Selecting a task is a persisted workflow action. Touch the workflow so
+        # the next Telegram webhook can recover the same active draft even when
+        # Vercel routes it to a different serverless instance.
+        existing.workflow.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    # A report that already contains narrative or evidence belongs to the
+    # previous reporting cycle. Preserve it and open a clean report so evidence
+    # counters start from zero after the user selects /report again.
+    return create_report_draft(
+        db=db,
+        user=user,
+        task=task,
+        fields=TelegramReportFields(report_text="", work_progress=""),
+        telegram_message_id=telegram_message_id,
+    )
+
+
+def update_report_draft(
+    db: Session,
+    report: DailyReport,
+    fields: TelegramReportFields,
+    telegram_message_id: str | None = None,
+) -> DailyReport:
+    """Fill the draft selected earlier without changing its task relationship."""
+    if not report.workflow or report.workflow.status not in (
+        ReportStatus.DRAFT,
+        ReportStatus.NEEDS_REVISION,
+    ):
+        raise ValueError("Draft laporan tidak dapat diperbarui")
+    report.report_text = fields.report_text
+    report.weather = fields.weather
+    report.manpower_count = fields.manpower_count
+    report.work_progress = fields.work_progress
+    report.issues = fields.issues
+    report.telegram_message_id = telegram_message_id or report.telegram_message_id
+
+    if fields.actual_quantity is not None or fields.actual_cost is not None:
+        if not report.progress_entry:
+            report.progress_entry = ReportProgressEntry(task_id=report.workflow.task_id)
+        report.progress_entry.quantity_this_report = fields.actual_quantity or 0
+        report.progress_entry.cost_this_report = fields.actual_cost or 0
+
+    lowered = normalize_text(fields.report_text)
+    checks_by_requirement = {
+        check.requirement_id: check for check in report.requirement_checks
+    }
+    for requirement in report.workflow.task.requirements:
+        check = checks_by_requirement.get(requirement.id)
+        if not check:
+            check = ReportRequirementCheck(
+                report_id=report.id,
+                requirement_id=requirement.id,
+                note="Auto grouping Telegram",
+            )
+            db.add(check)
+        pattern = rf"{re.escape(requirement.code.lower())}\s*:\s*(ya|yes|sesuai|ok)"
+        check.confirmed = bool(re.search(pattern, lowered))
+
     db.commit()
     db.refresh(report)
     return report

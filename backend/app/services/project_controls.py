@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
+from collections import defaultdict
 from math import ceil
 import re
 from typing import Iterable, Optional
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.user import (
     ApprovalStatus, CommunicationItem, CommunicationStatus, CommunicationType, DailyReport, Division,
@@ -56,125 +57,168 @@ def get_or_create_task_control(db: Session, task: Task) -> TaskControl:
     return control
 
 
-def task_gate_snapshot(db: Session, task: Task) -> dict:
-    control = db.query(TaskControl).filter(TaskControl.task_id == task.id).first()
-    start_blockers = []
-    completion_blockers = []
+def task_gate_snapshots(
+    db: Session,
+    tasks: list[Task],
+    controls_by_task: Optional[dict[int, TaskControl]] = None,
+) -> dict[int, dict]:
+    """Hitung gate banyak task dengan jumlah query konstan."""
+    if not tasks:
+        return {}
+    task_ids = [task.id for task in tasks]
+    controls_by_task = controls_by_task or {
+        item.task_id: item
+        for item in db.query(TaskControl).filter(TaskControl.task_id.in_(task_ids)).all()
+    }
 
-    if (task.approval_status or ApprovalStatus.APPROVED.value) != ApprovalStatus.APPROVED.value:
-        start_blockers.append({
-            "code": "task_pm_approval_required",
-            "label": "Task belum approved oleh Project Manager",
-            "entity_id": task.approval_id,
-        })
+    dependencies_by_task = defaultdict(list)
+    for item in db.query(TaskDependency).options(
+        joinedload(TaskDependency.predecessor),
+    ).filter(TaskDependency.task_id.in_(task_ids)).all():
+        dependencies_by_task[item.task_id].append(item)
 
-    dependencies = db.query(TaskDependency).filter(TaskDependency.task_id == task.id).all()
-    for dependency in dependencies:
-        predecessor = dependency.predecessor
-        if predecessor and predecessor.status != TaskStatus.DONE:
-            start_blockers.append({
-                "code": "dependency_incomplete",
-                "label": f"Predecessor belum selesai: {predecessor.title}",
-                "entity_id": predecessor.id,
-            })
-
+    materials_by_task = defaultdict(list)
     required_materials = db.query(TaskMaterialSpecification).filter(
-        TaskMaterialSpecification.task_id == task.id,
+        TaskMaterialSpecification.task_id.in_(task_ids),
         TaskMaterialSpecification.approval_required == True,
     ).all()
+    for item in required_materials:
+        materials_by_task[item.task_id].append(item)
     approval_by_material = {
         item.material_id: item
         for item in db.query(MaterialApproval).filter(
             MaterialApproval.material_id.in_([material.id for material in required_materials])
         ).all()
     } if required_materials else {}
-    for material in required_materials:
-        approval = approval_by_material.get(material.id)
-        if not approval or approval.status != "approved":
+
+    ncrs_by_task = defaultdict(list)
+    for item in db.query(NonConformance).filter(
+        NonConformance.task_id.in_(task_ids),
+        NonConformance.status.in_(OPEN_NCR_STATUSES),
+    ).all():
+        ncrs_by_task[item.task_id].append(item)
+
+    reports_by_task = defaultdict(list)
+    for item in db.query(DailyReportWorkflow).filter(
+        DailyReportWorkflow.task_id.in_(task_ids),
+        DailyReportWorkflow.status == ReportStatus.APPROVED,
+    ).all():
+        reports_by_task[item.task_id].append(item)
+
+    inspections_by_task = defaultdict(list)
+    for item in db.query(InspectionRequest).filter(
+        InspectionRequest.task_id.in_(task_ids),
+        InspectionRequest.is_required == True,
+        InspectionRequest.status != "cancelled",
+    ).all():
+        inspections_by_task[item.task_id].append(item)
+
+    snapshots = {}
+    for task in tasks:
+        control = controls_by_task.get(task.id)
+        dependencies = dependencies_by_task[task.id]
+        required_task_materials = materials_by_task[task.id]
+        open_ncrs = ncrs_by_task[task.id]
+        approved_reports = reports_by_task[task.id]
+        required_inspections = inspections_by_task[task.id]
+        start_blockers = []
+        completion_blockers = []
+
+        if (task.approval_status or ApprovalStatus.APPROVED.value) != ApprovalStatus.APPROVED.value:
             start_blockers.append({
-                "code": "material_not_approved",
-                "label": f"Material belum approved: {material.material_name}",
-                "entity_id": material.id,
+                "code": "task_pm_approval_required",
+                "label": "Task belum approved oleh Project Manager",
+                "entity_id": task.approval_id,
             })
 
-    open_ncrs = db.query(NonConformance).filter(
-        NonConformance.task_id == task.id,
-        NonConformance.status.in_(OPEN_NCR_STATUSES),
-    ).all()
-    for ncr in open_ncrs:
-        start_blockers.append({
-            "code": "open_ncr",
-            "label": f"NCR masih terbuka: {ncr.ncr_number}",
-            "entity_id": ncr.id,
-        })
+        for dependency in dependencies:
+            predecessor = dependency.predecessor
+            if predecessor and predecessor.status != TaskStatus.DONE:
+                start_blockers.append({
+                    "code": "dependency_incomplete",
+                    "label": f"Predecessor belum selesai: {predecessor.title}",
+                    "entity_id": predecessor.id,
+                })
 
-    if control and control.revision_attention_required:
-        start_blockers.append({
-            "code": "revision_review_required",
-            "label": control.revision_note or "Revisi drawing/specification perlu ditinjau",
-            "entity_id": control.id,
-        })
+        for material in required_task_materials:
+            approval = approval_by_material.get(material.id)
+            if not approval or approval.status != "approved":
+                start_blockers.append({
+                    "code": "material_not_approved",
+                    "label": f"Material belum approved: {material.material_name}",
+                    "entity_id": material.id,
+                })
 
-    approved_reports = db.query(DailyReportWorkflow).filter(
-        DailyReportWorkflow.task_id == task.id,
-        DailyReportWorkflow.status == ReportStatus.APPROVED,
-    ).all()
-    if not approved_reports:
-        completion_blockers.append({
-            "code": "approved_report_missing",
-            "label": "Belum ada laporan lapangan yang disetujui",
-        })
-    elif not any(item.validation_passed for item in approved_reports):
-        completion_blockers.append({
-            "code": "evidence_incomplete",
-            "label": "Laporan approved belum memenuhi validation/evidence gate",
-        })
+        for ncr in open_ncrs:
+            start_blockers.append({
+                "code": "open_ncr",
+                "label": f"NCR masih terbuka: {ncr.ncr_number}",
+                "entity_id": ncr.id,
+            })
 
-    if control and control.planned_quantity and control.planned_quantity > 0:
-        actual_quantity = control.actual_quantity or 0
-        if actual_quantity + 1e-9 < control.planned_quantity:
-            completion_blockers.append({
-                "code": "boq_volume_incomplete",
-                "label": (
-                    f"Volume BOQ belum selesai: {actual_quantity:g}/{control.planned_quantity:g} "
-                    f"{control.unit or ''}"
-                ).strip(),
+        if control and control.revision_attention_required:
+            start_blockers.append({
+                "code": "revision_review_required",
+                "label": control.revision_note or "Revisi drawing/specification perlu ditinjau",
                 "entity_id": control.id,
             })
 
-    required_inspections = db.query(InspectionRequest).filter(
-        InspectionRequest.task_id == task.id,
-        InspectionRequest.is_required == True,
-        InspectionRequest.status != "cancelled",
-    ).all()
-    if not required_inspections:
-        completion_blockers.append({
-            "code": "inspection_missing",
-            "label": "Inspection request wajib belum dibuat",
-        })
-    elif any(item.status != "passed" for item in required_inspections):
-        completion_blockers.append({
-            "code": "inspection_not_passed",
-            "label": "Seluruh inspeksi wajib harus berstatus passed",
-        })
+        if not approved_reports:
+            completion_blockers.append({
+                "code": "approved_report_missing",
+                "label": "Belum ada laporan lapangan yang disetujui",
+            })
+        elif not any(item.validation_passed for item in approved_reports):
+            completion_blockers.append({
+                "code": "evidence_incomplete",
+                "label": "Laporan approved belum memenuhi validation/evidence gate",
+            })
 
-    completion_blockers.extend(start_blockers)
-    return {
-        "task_id": task.id,
-        "can_start": not start_blockers,
-        "can_complete": not completion_blockers,
-        "start_blockers": start_blockers,
-        "completion_blockers": completion_blockers,
-        "approved_report_count": len(approved_reports),
-        "required_inspection_count": len(required_inspections),
-        "passed_inspection_count": sum(1 for item in required_inspections if item.status == "passed"),
-        "open_ncr_count": len(open_ncrs),
-        "required_material_count": len(required_materials),
-        "approved_material_count": sum(
-            1 for material in required_materials
-            if approval_by_material.get(material.id) and approval_by_material[material.id].status == "approved"
-        ),
-    }
+        if control and control.planned_quantity and control.planned_quantity > 0:
+            actual_quantity = control.actual_quantity or 0
+            if actual_quantity + 1e-9 < control.planned_quantity:
+                completion_blockers.append({
+                    "code": "boq_volume_incomplete",
+                    "label": (
+                        f"Volume BOQ belum selesai: {actual_quantity:g}/{control.planned_quantity:g} "
+                        f"{control.unit or ''}"
+                    ).strip(),
+                    "entity_id": control.id,
+                })
+
+        if not required_inspections:
+            completion_blockers.append({
+                "code": "inspection_missing",
+                "label": "Inspection request wajib belum dibuat",
+            })
+        elif any(item.status != "passed" for item in required_inspections):
+            completion_blockers.append({
+                "code": "inspection_not_passed",
+                "label": "Seluruh inspeksi wajib harus berstatus passed",
+            })
+
+        completion_blockers.extend(start_blockers)
+        snapshots[task.id] = {
+            "task_id": task.id,
+            "can_start": not start_blockers,
+            "can_complete": not completion_blockers,
+            "start_blockers": start_blockers,
+            "completion_blockers": completion_blockers,
+            "approved_report_count": len(approved_reports),
+            "required_inspection_count": len(required_inspections),
+            "passed_inspection_count": sum(1 for item in required_inspections if item.status == "passed"),
+            "open_ncr_count": len(open_ncrs),
+            "required_material_count": len(required_task_materials),
+            "approved_material_count": sum(
+                1 for material in required_task_materials
+                if approval_by_material.get(material.id) and approval_by_material[material.id].status == "approved"
+            ),
+        }
+    return snapshots
+
+
+def task_gate_snapshot(db: Session, task: Task) -> dict:
+    return task_gate_snapshots(db, [task])[task.id]
 
 
 def recalculate_project_controls(db: Session, project_id: int) -> dict:
@@ -192,19 +236,25 @@ def recalculate_project_controls(db: Session, project_id: int) -> dict:
     ).all()
     by_task = {item.task_id: item for item in controls}
 
+    totals_by_task = {
+        int(task_id): (float(quantity or 0), float(cost or 0))
+        for task_id, quantity, cost in db.query(
+            ReportProgressEntry.task_id,
+            func.coalesce(func.sum(ReportProgressEntry.quantity_this_report), 0.0),
+            func.coalesce(func.sum(ReportProgressEntry.cost_this_report), 0.0),
+        ).filter(
+            ReportProgressEntry.task_id.in_([task.id for task in tasks]),
+            ReportProgressEntry.applied_at.isnot(None),
+        ).group_by(ReportProgressEntry.task_id).all()
+    } if tasks else {}
+
     for task in tasks:
         control = by_task.get(task.id)
         if not control:
             continue
-        totals = db.query(
-            func.coalesce(func.sum(ReportProgressEntry.quantity_this_report), 0.0),
-            func.coalesce(func.sum(ReportProgressEntry.cost_this_report), 0.0),
-        ).filter(
-            ReportProgressEntry.task_id == task.id,
-            ReportProgressEntry.applied_at.isnot(None),
-        ).first()
-        control.actual_quantity = float(totals[0] or 0)
-        control.actual_cost = float(totals[1] or 0)
+        quantity, cost = totals_by_task.get(task.id, (0.0, 0.0))
+        control.actual_quantity = quantity
+        control.actual_cost = cost
         if control.planned_quantity and control.planned_quantity > 0:
             task.progress_percent = round(min(100, (control.actual_quantity / control.planned_quantity) * 100), 2)
 
@@ -526,19 +576,26 @@ def _vendor_candidate_snapshot(
     }
 
 
-def _vendor_candidates(db: Session, task: Task, control: Optional[TaskControl]) -> list[dict]:
+def _vendor_candidates(
+    db: Session,
+    task: Task,
+    control: Optional[TaskControl],
+    rates: Optional[list[VendorRateCard]] = None,
+) -> list[dict]:
     categories = _detect_work_categories(task)
     quantity = _control_quantity(control)
-    rates = (
-        db.query(VendorRateCard)
-        .join(VendorProfile)
-        .filter(VendorProfile.is_approved == True)
-        .filter(
-            (VendorProfile.project_id == task.project_id) |
-            (VendorProfile.project_id.is_(None))
+    if rates is None:
+        rates = (
+            db.query(VendorRateCard)
+            .options(joinedload(VendorRateCard.vendor))
+            .join(VendorProfile)
+            .filter(VendorProfile.is_approved == True)
+            .filter(
+                (VendorProfile.project_id == task.project_id) |
+                (VendorProfile.project_id.is_(None))
+            )
+            .all()
         )
-        .all()
-    )
     candidates = []
     now = datetime.utcnow()
     for rate in rates:
@@ -624,17 +681,23 @@ def _productivity_candidate_snapshot(
     }
 
 
-def _productivity_candidates(db: Session, task: Task, control: Optional[TaskControl]) -> list[dict]:
+def _productivity_candidates(
+    db: Session,
+    task: Task,
+    control: Optional[TaskControl],
+    benchmarks: Optional[list[ProductivityBenchmark]] = None,
+) -> list[dict]:
     categories = _detect_work_categories(task)
     quantity = _control_quantity(control)
-    benchmarks = (
-        db.query(ProductivityBenchmark)
-        .filter(
-            (ProductivityBenchmark.project_id == task.project_id) |
-            (ProductivityBenchmark.project_id.is_(None))
+    if benchmarks is None:
+        benchmarks = (
+            db.query(ProductivityBenchmark)
+            .filter(
+                (ProductivityBenchmark.project_id == task.project_id) |
+                (ProductivityBenchmark.project_id.is_(None))
+            )
+            .all()
         )
-        .all()
-    )
     candidates = []
     for benchmark in benchmarks:
         matched, match_score = _productivity_matches_task(benchmark, task, control, categories)
@@ -649,12 +712,16 @@ def _productivity_candidates(db: Session, task: Task, control: Optional[TaskCont
 
 def make_or_buy_snapshot(
     db: Optional[Session], task: Task, control: Optional[TaskControl], technical_strategy: dict,
+    vendor_rates: Optional[list[VendorRateCard]] = None,
+    productivity_benchmarks: Optional[list[ProductivityBenchmark]] = None,
 ) -> dict:
     technical_score = int(technical_strategy.get("score") or 0)
     boq_value = _money(control.boq_value if control else 0) or _money(control.budget_cost if control else 0)
-    candidates = _vendor_candidates(db, task, control) if db else []
+    candidates = _vendor_candidates(db, task, control, vendor_rates) if db else []
     best_vendor = candidates[0] if candidates else None
-    productivity_candidates = _productivity_candidates(db, task, control) if db else []
+    productivity_candidates = _productivity_candidates(
+        db, task, control, productivity_benchmarks,
+    ) if db else []
     best_productivity = productivity_candidates[0] if productivity_candidates else None
     internal = _internal_cost_snapshot(
         control, technical_score, best_vendor["total_cost"] if best_vendor else None,
@@ -772,6 +839,8 @@ def make_or_buy_snapshot(
 
 def vendor_strategy_snapshot(
     task: Task, control: Optional[TaskControl], gate: dict, db: Optional[Session] = None,
+    vendor_rates: Optional[list[VendorRateCard]] = None,
+    productivity_benchmarks: Optional[list[ProductivityBenchmark]] = None,
 ) -> dict:
     title = f"{task.title} {task.description or ''}".lower()
     material_count = len(task.materials or [])
@@ -865,7 +934,14 @@ def vendor_strategy_snapshot(
         "label": label,
         "criteria": criteria,
     }
-    snapshot["make_or_buy"] = make_or_buy_snapshot(db, task, control, snapshot)
+    snapshot["make_or_buy"] = make_or_buy_snapshot(
+        db,
+        task,
+        control,
+        snapshot,
+        vendor_rates=vendor_rates,
+        productivity_benchmarks=productivity_benchmarks,
+    )
     return snapshot
 
 
@@ -985,16 +1061,35 @@ def _upsert_handover(
 
 
 def project_controls_summary(db: Session, project: Project) -> dict:
-    tasks = db.query(Task).filter(Task.project_id == project.id).order_by(Task.deadline).all()
+    tasks = db.query(Task).options(
+        joinedload(Task.specification),
+        selectinload(Task.materials),
+    ).filter(Task.project_id == project.id).order_by(Task.deadline).all()
     controls = db.query(TaskControl).join(Task).filter(Task.project_id == project.id).all()
     by_task = {item.task_id: item for item in controls}
+    gates_by_task = task_gate_snapshots(db, tasks, by_task)
+    vendor_rates = (
+        db.query(VendorRateCard)
+        .options(joinedload(VendorRateCard.vendor))
+        .join(VendorProfile)
+        .filter(VendorProfile.is_approved == True)
+        .filter(
+            (VendorProfile.project_id == project.id) |
+            (VendorProfile.project_id.is_(None))
+        )
+        .all()
+    )
+    productivity_benchmarks = db.query(ProductivityBenchmark).filter(
+        (ProductivityBenchmark.project_id == project.id) |
+        (ProductivityBenchmark.project_id.is_(None))
+    ).all()
     now = datetime.utcnow()
     lookahead_end = now + timedelta(days=21)
 
     task_rows = []
     for task in tasks:
         control = by_task.get(task.id)
-        gate = task_gate_snapshot(db, task)
+        gate = gates_by_task[task.id]
         task_rows.append({
             "id": task.id,
             "title": task.title,
@@ -1023,7 +1118,14 @@ def project_controls_summary(db: Session, project: Project) -> dict:
             "planned_manpower": control.planned_manpower if control else None,
             "planned_equipment": control.planned_equipment if control else None,
             "gate": gate,
-            "vendor_strategy": vendor_strategy_snapshot(task, control, gate, db),
+            "vendor_strategy": vendor_strategy_snapshot(
+                task,
+                control,
+                gate,
+                db,
+                vendor_rates=vendor_rates,
+                productivity_benchmarks=productivity_benchmarks,
+            ),
         })
 
     material_rows = []
@@ -1159,6 +1261,7 @@ def my_work_summary(db: Session, user: User) -> dict:
     if user.role != UserRole.DIRECTOR:
         tasks = [task for task in tasks if can_access_task(user, task)]
     tasks = tasks[:30]
+    gates_by_task = task_gate_snapshots(db, tasks)
 
     report_query = db.query(DailyReport).join(DailyReportWorkflow).filter(
         DailyReportWorkflow.status.in_([
@@ -1169,7 +1272,10 @@ def my_work_summary(db: Session, user: User) -> dict:
         report_query = report_query.filter(DailyReport.user_id == user.id)
     elif accessible_project_ids is not None:
         report_query = report_query.filter(DailyReport.project_id.in_(accessible_project_ids or [-1]))
-    reports = report_query.order_by(DailyReport.report_date.desc()).limit(20).all()
+    reports = report_query.options(
+        joinedload(DailyReport.workflow),
+        joinedload(DailyReport.reporter),
+    ).order_by(DailyReport.report_date.desc()).limit(20).all()
 
     ncr_query = db.query(NonConformance).filter(NonConformance.status.in_(OPEN_NCR_STATUSES))
     if user.role in (UserRole.STAFF, UserRole.SUBCONTRACTOR):
@@ -1184,7 +1290,7 @@ def my_work_summary(db: Session, user: User) -> dict:
             "id": task.id, "title": task.title, "project_id": task.project_id,
             "status": task.status.value, "deadline": task.deadline,
             "priority": task.priority.value, "progress_percent": task.progress_percent,
-            "gate": task_gate_snapshot(db, task),
+            "gate": gates_by_task[task.id],
         } for task in tasks],
         "reports": [{
             "id": report.id, "task_id": report.workflow.task_id,

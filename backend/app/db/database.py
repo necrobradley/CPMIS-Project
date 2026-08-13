@@ -111,6 +111,11 @@ def _ensure_lightweight_columns():
         if inspector.has_table("task_dependencies")
         else set()
     )
+    project_columns = (
+        {column["name"] for column in inspector.get_columns("projects")}
+        if inspector.has_table("projects")
+        else set()
+    )
     with engine.begin() as connection:
         if "avatar_url" not in user_columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)"))
@@ -147,6 +152,9 @@ def _ensure_lightweight_columns():
             connection.execute(text("ALTER TABLE task_controls ADD COLUMN internal_risk_cost FLOAT NOT NULL DEFAULT 0"))
         if "reason" not in dependency_columns:
             connection.execute(text("ALTER TABLE task_dependencies ADD COLUMN reason TEXT"))
+        if "plan_key" not in project_columns:
+            connection.execute(text("ALTER TABLE projects ADD COLUMN plan_key VARCHAR(40)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_projects_plan_key ON projects (plan_key)"))
 
 
 def bootstrap_project_memberships():
@@ -190,6 +198,22 @@ def bootstrap_project_memberships():
         for task in db.query(Task).filter(Task.assigned_to.isnot(None)).all():
             upsert(task.project_id, task.assigned_to, task.division_id)
         db.commit()
+    finally:
+        db.close()
+
+
+def bootstrap_dataset_task_divisions():
+    """Pindahkan task impor lama dari divisi bawaan ke divisi disiplin WBS."""
+    from app.services.project_dataset import sync_dataset_task_divisions
+
+    db = SessionLocal()
+    try:
+        result = sync_dataset_task_divisions(db)
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

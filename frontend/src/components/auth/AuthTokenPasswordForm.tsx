@@ -52,7 +52,7 @@ export default function AuthTokenPasswordForm({ mode }: { mode: Mode }) {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md animate-in">
         <div className="mb-8 flex h-16 items-center rounded-xl border border-slate-200 bg-white px-5">
-          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
+          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="mx-auto h-auto w-full max-w-[240px] object-contain" priority />
         </div>
         <div className="card p-6 sm:p-8">
           {complete ? (

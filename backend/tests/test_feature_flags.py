@@ -3,10 +3,10 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.v1.endpoints.settings import update_feature_flag
+from app.api.v1.endpoints.settings import apply_project_plan, update_feature_flag
 from app.db.database import Base
-from app.models.user import AuditLog, FeatureFlag, User, UserRole
-from app.schemas.schemas import FeatureFlagUpdate
+from app.models.user import AuditLog, FeatureFlag, Project, ProjectFeatureEntitlement, User, UserRole
+from app.schemas.schemas import FeatureFlagUpdate, ProjectPlanUpdate
 from app.services.feature_flags import bootstrap_feature_flags
 
 
@@ -64,3 +64,33 @@ def test_core_feature_cannot_be_disabled():
         update_feature_flag("admin_console", FeatureFlagUpdate(enabled=False), db, admin)
 
     assert exc.value.status_code == 409
+
+
+def test_owner_applies_package_to_existing_project_entitlements():
+    db, owner = build_database()
+    bootstrap_feature_flags(db)
+    project = Project(project_name="Paket Project", owner_id=owner.id)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    result = apply_project_plan(
+        project.id,
+        ProjectPlanUpdate(plan_key="starter"),
+        db,
+        owner,
+    )
+    db.refresh(project)
+    telegram = db.query(ProjectFeatureEntitlement).filter(
+        ProjectFeatureEntitlement.project_id == project.id,
+        ProjectFeatureEntitlement.feature_key == "telegram",
+    ).first()
+    dashboard = db.query(ProjectFeatureEntitlement).filter(
+        ProjectFeatureEntitlement.project_id == project.id,
+        ProjectFeatureEntitlement.feature_key == "dashboard",
+    ).first()
+
+    assert result["plan_key"] == "starter"
+    assert project.plan_key == "starter"
+    assert telegram is not None and telegram.enabled is False
+    assert dashboard is not None and dashboard.enabled is True

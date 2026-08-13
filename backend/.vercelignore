@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.db
 uploads/
+.docx-qa/
 .env
 .env.*
 !.env.example

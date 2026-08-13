@@ -23,6 +23,7 @@ node_modules/
 *.sqlite3
 uploads/
 importtime.log
+.docx-qa/
 
 # Editor / OS
 .DS_Store

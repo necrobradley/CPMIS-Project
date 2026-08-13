@@ -111,6 +111,70 @@ class AIService:
         )
         return secure_ai_gateway.restore(response.choices[0].message.content, decision)
 
+    async def map_employee_positions(
+        self,
+        employees: list[dict],
+        available_roles: list[dict],
+    ) -> list[dict]:
+        """Petakan nama posisi non-sensitif ke role proyek dari katalog resmi."""
+        role_catalog = [
+            {
+                "code": role.get("code"),
+                "label": role.get("label"),
+                "default_division": role.get("default_division"),
+                "responsibility": role.get("responsibility"),
+            }
+            for role in available_roles
+            if role.get("code") and role.get("code") != "project_admin"
+        ]
+        if not role_catalog:
+            raise ValueError("Katalog role proyek aktif belum tersedia")
+
+        system_prompt = """Kamu adalah AI workforce planner proyek Indonesia.
+Petakan setiap nama posisi pegawai ke tepat satu role dari katalog yang diberikan.
+Jangan membuat kode role baru. Jawab hanya JSON array valid tanpa markdown.
+Nama dan email pegawai sengaja tidak dikirim untuk menjaga privasi."""
+        results: list[dict] = []
+        for start in range(0, len(employees), 25):
+            batch = employees[start:start + 25]
+            user_message = f"""
+Katalog role yang diizinkan:
+{json.dumps(role_catalog, ensure_ascii=False)}
+
+Posisi yang perlu dipetakan:
+{json.dumps(batch, ensure_ascii=False)}
+
+Kembalikan satu objek untuk setiap row dengan urutan dan row yang sama:
+[
+  {{
+    "row": 2,
+    "project_role": "kode persis dari katalog",
+    "division_name": "nama divisi kerja yang ringkas dan profesional",
+    "confidence": 0.0,
+    "reasoning": "alasan singkat pemetaan"
+  }}
+]
+confidence harus angka 0 sampai 1. Gunakan default_division katalog sebagai acuan utama.
+Jika posisi ambigu, pilih role terdekat dan beri confidence di bawah 0.6.
+"""
+            raw = await self._chat_completion(
+                system_prompt,
+                user_message,
+                route="analysis",
+            )
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1]
+                cleaned = cleaned.rsplit("```", 1)[0].strip()
+            try:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Respons pemetaan posisi AI bukan JSON yang valid") from exc
+            if not isinstance(parsed, list):
+                raise ValueError("Respons pemetaan posisi AI harus berupa daftar")
+            results.extend(item for item in parsed if isinstance(item, dict))
+        return results
+
     # -----------------------------------------------------------------------------
     # DOCUMENT ANALYSIS
     # -----------------------------------------------------------------------------

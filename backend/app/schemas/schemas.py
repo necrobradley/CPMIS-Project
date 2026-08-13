@@ -334,6 +334,7 @@ class ProjectResponse(BaseModel):
     start_date: Optional[datetime]
     end_date: Optional[datetime]
     status: ProjectStatus
+    plan_key: Optional[Literal["starter", "professional", "enterprise"]] = None
     owner_id: int
     progress_percent: float
     created_at: datetime
@@ -1275,6 +1276,19 @@ class CommunicationDetailResponse(CommunicationResponse):
 
 class FeatureFlagUpdate(BaseModel):
     enabled: bool
+
+
+class ProjectPlanUpdate(BaseModel):
+    plan_key: Literal["starter", "professional", "enterprise"]
+
+
+class ProjectPlanResponse(BaseModel):
+    project_id: int
+    project_name: str
+    plan_key: Literal["starter", "professional", "enterprise"]
+    plan_name: str
+    enabled_features: int
+    total_features: int
 
 
 class FeatureFlagResponse(BaseModel):
