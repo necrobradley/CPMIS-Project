@@ -1,20 +1,32 @@
 """
 System readiness endpoint for dashboards and external monitors.
 """
+import logging
 import secrets
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
 import httpx
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import require_roles
+from app.core.security import require_roles, verify_password
 from app.db.database import get_db
 from app.models.user import User, UserRole
 from app.services.ai_service import AIService
 from app.services.audit_service import log_audit
+from app.services.storage_service import storage_service
+from app.services.system_reset import collect_operational_storage_paths, reset_operational_data
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["System"])
+
+
+class OperationalResetRequest(BaseModel):
+    owner_email: str = Field(min_length=3, max_length=100)
+    password: str = Field(min_length=1, max_length=256)
+    confirmation: str = Field(min_length=1, max_length=40)
 
 
 async def _read_project_archive(dataset: UploadFile) -> bytes:
@@ -121,6 +133,58 @@ async def bootstrap_project(
         admin_password=admin_password,
         telegram_id=telegram_id,
     )
+
+
+@router.post("/reset/operational-data", summary="Kosongkan data operasional proyek")
+def reset_project_operational_data(
+    payload: OperationalResetRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+):
+    """Reset berisiko tinggi yang hanya dapat dijalankan owner/admin aktif.
+
+    Akun pengguna dan konfigurasi platform dipertahankan. Proyek, divisi,
+    tugas, laporan, dokumen, komunikasi, approval, notifikasi, dan audit
+    operasional dikosongkan.
+    """
+    if payload.owner_email.strip().casefold() != current_user.email.strip().casefold():
+        raise HTTPException(status_code=400, detail="Email owner tidak sesuai dengan akun yang sedang aktif")
+    if payload.confirmation.strip() != "RESET DATA":
+        raise HTTPException(status_code=400, detail='Ketik "RESET DATA" untuk mengonfirmasi')
+    if not verify_password(payload.password, current_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Password owner tidak valid")
+
+    storage_paths = collect_operational_storage_paths(db)
+    try:
+        deleted = reset_operational_data(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    removed_files = 0
+    failed_files = 0
+    for object_path in storage_paths:
+        try:
+            if storage_service.delete_file(object_path):
+                removed_files += 1
+            else:
+                failed_files += 1
+        except Exception as exc:  # Database reset must remain successful if object cleanup fails.
+            failed_files += 1
+            logger.warning("Operational reset could not delete object %s: %s", object_path, exc)
+
+    return {
+        "status": "reset_complete",
+        "message": "Data operasional telah dikosongkan. Akun dan konfigurasi platform tetap tersedia.",
+        "deleted_rows": deleted,
+        "deleted_row_total": sum(deleted.values()),
+        "storage": {
+            "queued": len(storage_paths),
+            "deleted": removed_files,
+            "failed": failed_files,
+        },
+    }
 
 
 @router.get("/status")

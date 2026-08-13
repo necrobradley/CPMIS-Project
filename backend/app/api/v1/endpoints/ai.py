@@ -15,6 +15,11 @@ from app.services.ai_provider_routing import available_models
 from app.services.n8n_service import n8n_service
 from app.services.report_workflow import ensure_project_access
 from app.services.task_approval import request_task_approval
+from app.services.project_staffing import (
+    active_pic_roles,
+    resolve_task_project_role,
+    select_task_pic,
+)
 
 router = APIRouter(prefix="/ai", tags=["AI Features"])
 ai_service = AIService()
@@ -128,25 +133,39 @@ async def generate_tasks_from_document(
 
     analysis = json.loads(doc.ai_analysis)
 
+    available_roles = active_pic_roles(db, project_id)
+    allowed_role_codes = {role["code"] for role in available_roles}
     try:
-        task_list = await ai_service.generate_tasks(analysis=analysis, project_id=project_id)
+        task_list = await ai_service.generate_tasks(
+            analysis=analysis,
+            project_id=project_id,
+            available_roles=available_roles,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generate task gagal: {str(e)}")
 
     created_tasks = []
     tasks_by_wbs = {}
+    project_divisions = db.query(Division).filter(Division.project_id == project_id).all()
     for t in task_list:
         division_name = (t.get("division") or "").lower()
-        division = db.query(Division).filter(Division.project_id == project_id).all()
         matched_division = next(
-            (item for item in division if division_name and division_name in item.division_name.lower()),
+            (item for item in project_divisions if division_name and division_name in item.division_name.lower()),
             None,
         )
+        project_role = resolve_task_project_role(t, allowed_role_codes)
+        assignment = select_task_pic(
+            db,
+            project_id=project_id,
+            requested_project_role=project_role,
+        )
+        assigned_division_id = assignment.division_id if assignment else (matched_division.id if matched_division else None)
         task = Task(
             title=t["title"],
             description=t.get("description"),
             project_id=project_id,
-            division_id=matched_division.id if matched_division else None,
+            division_id=assigned_division_id,
+            assigned_to=assignment.user_id if assignment else None,
             priority=t.get("priority", "medium"),
             deadline=None,
             created_by=current_user.id,

@@ -192,7 +192,12 @@ Jangan mengarang spesifikasi material. Isi hanya data yang tertulis atau didukun
     # TASK GENERATION
     # -----------------------------------------------------------------------------
 
-    async def generate_tasks(self, analysis: dict, project_id: int) -> list:
+    async def generate_tasks(
+        self,
+        analysis: dict,
+        project_id: int,
+        available_roles: Optional[list[dict]] = None,
+    ) -> list:
         """
         Dari hasil analisis dokumen -> generate task breakdown.
         Output: list of task dict.
@@ -201,9 +206,26 @@ Jangan mengarang spesifikasi material. Isi hanya data yang tertulis atau didukun
 Buat breakdown task yang terstruktur berdasarkan scope pekerjaan.
 Selalu jawab dalam format JSON array yang valid tanpa markdown.
 """
+        role_catalog = [
+            {
+                "code": role.get("code"),
+                "label": role.get("label"),
+                "responsibility": role.get("responsibility"),
+            }
+            for role in (available_roles or [])
+            if role.get("code")
+        ]
+        role_instruction = (
+            "Pilih tepat satu project_role dari katalog anggota aktif berikut untuk setiap task:\n"
+            f"{json.dumps(role_catalog, ensure_ascii=False)}"
+            if role_catalog
+            else "Isi project_role dengan kode role proyek yang paling bertanggung jawab."
+        )
         user_message = f"""
 Berdasarkan analisis proyek ini:
 {json.dumps(analysis, ensure_ascii=False, indent=2)}
+
+{role_instruction}
 
 Buat daftar task yang perlu dikerjakan. Format JSON array:
 [
@@ -214,6 +236,7 @@ Buat daftar task yang perlu dikerjakan. Format JSON array:
     "description": "Deskripsi detail task",
     "priority": "low|medium|high|critical",
     "division": "nama divisi",
+    "project_role": "kode role proyek PIC dari katalog anggota aktif",
     "deadline": "YYYY-MM-DD atau null",
     "estimated_days": 5,
     "acceptance_criteria": "kriteria terukur agar pekerjaan diterima",
@@ -246,6 +269,7 @@ Buat daftar task yang perlu dikerjakan. Format JSON array:
 ]
 
 Buat minimal 10 task yang realistis, memiliki hierarki WBS, dan terstruktur per divisi.
+Jika katalog role aktif tersedia, buat cakupan kerja yang relevan bagi setiap role aktif. Jangan memberi task PIC kepada role di luar katalog.
 Ekstrak material hanya jika disebut atau dapat diturunkan secara kuat dari dokumen. Jangan mengarang merek, standar, grade, kuantitas, atau sumber halaman.
 Petakan setiap item pada material_specifications ke task/WBS terkait dan salin ke array materials task tersebut.
 """

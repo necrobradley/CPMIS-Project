@@ -283,4 +283,6 @@ export const systemApi = {
     api.post('/system/import/project-dataset', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  resetOperationalData: (data: { owner_email: string; password: string; confirmation: string }) =>
+    api.post('/system/reset/operational-data', data),
 }

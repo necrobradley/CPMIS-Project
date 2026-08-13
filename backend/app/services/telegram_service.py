@@ -74,7 +74,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         text = (
-            "👋 Selamat datang di *AI CPMIS Bot*!\n\n"
+            "👋 Selamat datang di *Rencanix Bot*!\n\n"
             "Akun Telegram Anda belum terdaftar.\n"
             f"Telegram ID Anda: `{telegram_id}`\n\n"
             "Kirim Telegram ID ini ke administrator untuk menghubungkan akun."
@@ -85,7 +85,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── /help ──────────────────────────────────────────────────────
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "🤖 *Panduan AI CPMIS Bot*\n\n"
+        "🤖 *Panduan Rencanix Bot*\n\n"
         "*/start* — Menu utama\n"
         "*/tasks* — Daftar task Anda\n"
         "*/laporan* — Panduan buat laporan harian\n"

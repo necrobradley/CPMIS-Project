@@ -4,7 +4,7 @@ from typing import List
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "DigiCom PMIS"
+    APP_NAME: str = "Rencanix"
     APP_VERSION: str = "2.6.0"
     DEBUG: bool = True
     SECRET_KEY: str = "change-this-in-production"

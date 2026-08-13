@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useState } from 'react'
-import { CheckCircle2, Database, FileArchive, HardHat, KeyRound, Loader2, Lock, Mail, Send } from 'lucide-react'
+import { CheckCircle2, Database, FileArchive, KeyRound, Loader2, Lock, Mail, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { systemApi } from '@/lib/api'
@@ -22,10 +23,20 @@ type SetupResult = {
     email: string
     role: string
     project_role: string
+    project_role_label?: string
+    can_be_task_pic?: boolean
     created: boolean
     temporary_password?: string | null
   }>
   assignment_counts?: Record<string, number>
+  role_assignment_counts?: Record<string, number>
+  project_roles_created?: number
+  ai_role_tasks?: number
+  demo_features_seeded?: boolean
+  demo_reports?: number
+  demo_documents?: number
+  demo_approvals?: number
+  demo_communications?: number
 }
 
 export default function InitialSetupPage() {
@@ -71,12 +82,8 @@ export default function InitialSetupPage() {
     <div className="min-h-screen bg-slate-50 px-5 py-10">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-white"><HardHat size={22} /></div>
-            <div>
-              <div className="font-bold text-slate-950">DigiCom PMIS</div>
-              <div className="text-xs text-slate-500">Setup awal CPMIS</div>
-            </div>
+          <div className="flex h-16 w-56 items-center rounded-xl border border-slate-200 bg-white px-4">
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
           </div>
           <Link href="/login" className="btn-secondary">Kembali ke login</Link>
         </div>
@@ -107,6 +114,13 @@ export default function InitialSetupPage() {
                   required
                 />
                 {dataset && <span className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><FileArchive size={13} />{dataset.name} · {(dataset.size / 1024 / 1024).toFixed(2)} MB</span>}
+                <a
+                  href="/demo/CPMIS_Demo_Pusat_Inovasi_2026.zip"
+                  download
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:text-violet-900"
+                >
+                  <FileArchive size={13} /> Download paket dummy semua fitur
+                </a>
               </label>
 
               <label className="block md:col-span-2">
@@ -149,7 +163,7 @@ export default function InitialSetupPage() {
             </div>
 
             <div className="rounded-lg border border-cyan-100 bg-cyan-50 p-3 text-xs leading-5 text-cyan-800">
-              ZIP diproses di browser dan diperkecil otomatis sebelum dikirim. Hanya berkas inti untuk task, Digital Twin, dan AI yang diunggah.
+              ZIP diproses di browser dan diperkecil otomatis. Berkas inti serta manifest demo opsional akan dikirim ke backend.
             </div>
 
             <button disabled={loading} className="btn-primary w-full justify-center py-3">
@@ -169,6 +183,14 @@ export default function InitialSetupPage() {
                 <p className="mt-2 text-xs leading-5 text-emerald-700">
                   {result.tasks_upserted} task · {result.nodes_upserted} node · {result.relationships_upserted} relasi · {result.rules_upserted} rule · {result.reasoning_examples_upserted} reasoning
                 </p>
+                <p className="mt-2 text-xs leading-5 text-emerald-700">
+                  {result.project_roles_created || 0} akun role proyek · {result.ai_role_tasks || 0} task demo AI sudah memiliki PIC
+                </p>
+                {result.demo_features_seeded && (
+                  <p className="mt-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800">
+                    Data presentasi aktif: {result.demo_documents || 0} dokumen, {result.demo_reports || 0} laporan, {result.demo_approvals || 0} approval, dan {result.demo_communications || 0} komunikasi.
+                  </p>
+                )}
                 {result.generated_accounts && result.generated_accounts.length > 0 && (
                   <div className="mt-4 overflow-x-auto rounded-lg border border-emerald-200 bg-white">
                     <table className="w-full min-w-[640px] text-left text-xs">
@@ -177,7 +199,7 @@ export default function InitialSetupPage() {
                         {result.generated_accounts.map((account) => (
                           <tr key={account.email}>
                             <td className="px-3 py-2 font-medium text-slate-800">{account.email}</td>
-                            <td className="px-3 py-2 text-slate-600">{account.role} / {account.project_role}</td>
+                            <td className="px-3 py-2 text-slate-600">{account.role} / {account.project_role_label || account.project_role}{account.can_be_task_pic === false ? ' (reviewer)' : ''}</td>
                             <td className="px-3 py-2 text-slate-600">{result.assignment_counts?.[account.role] || 0}</td>
                             <td className="px-3 py-2 font-mono text-slate-700">{account.temporary_password || 'Tidak diubah'}</td>
                           </tr>

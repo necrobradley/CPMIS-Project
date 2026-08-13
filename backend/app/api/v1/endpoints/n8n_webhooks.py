@@ -250,4 +250,4 @@ async def receive_weekly_summary_sent(
 @router.get("/health")
 def n8n_health():
     """N8N bisa ping endpoint ini untuk cek koneksi backend."""
-    return {"status": "ok", "service": "AI CPMIS Backend", "n8n_ready": True}
+    return {"status": "ok", "service": "Rencanix Backend", "n8n_ready": True}

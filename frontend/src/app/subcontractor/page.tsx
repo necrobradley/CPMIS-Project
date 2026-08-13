@@ -137,7 +137,7 @@ export default function SubcontractorPage() {
           <div>
             <h3 className="font-semibold text-slate-800 mb-1">Laporan via Telegram Bot</h3>
             <p className="text-sm text-slate-600 mb-3">
-              Kirim laporan harian langsung dari lapangan menggunakan Telegram Bot AI CPMIS.
+              Kirim laporan harian langsung dari lapangan melalui Telegram Bot Rencanix yang terhubung ke proyek.
               Cukup ketik teks bebas — AI akan otomatis memproses dan menyimpan laporan Anda.
             </p>
             <div className="flex items-center gap-2 text-sm">

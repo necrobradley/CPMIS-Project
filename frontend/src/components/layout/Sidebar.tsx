@@ -1,6 +1,7 @@
 'use client'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { settingsApi } from '@/lib/api'
@@ -11,7 +12,7 @@ import NotificationBell from '@/components/ui/NotificationBell'
 import UserAvatar from '@/components/ui/UserAvatar'
 import {
   LayoutDashboard, FolderKanban, CheckSquare,
-  FileText, Bot, Users, LogOut, HardHat, ChevronRight,
+  FileText, Bot, Users, LogOut, ChevronRight,
   FolderOpen, ShieldCheck, Building, GitBranch, AlertTriangle,
   Workflow, MessageSquare, Radio, ClipboardCheck, History, FileDown,
   Inbox,
@@ -137,10 +138,7 @@ export default function Sidebar() {
           <button type="button" onClick={() => setMobileOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white" aria-label="Buka menu">
             <Menu size={20} />
           </button>
-          <div>
-            <p className="text-sm font-bold text-white">DigiCom PMIS</p>
-            <p className="text-[11px] text-slate-500">Communication Control</p>
-          </div>
+          <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={130} height={40} className="h-8 w-auto rounded bg-white px-2 object-contain" priority />
         </div>
         <NotificationBell />
       </header>
@@ -151,14 +149,10 @@ export default function Sidebar() {
         'fixed left-0 top-0 z-50 flex h-full w-[240px] flex-col bg-slate-900 transition-transform duration-200 lg:z-40 lg:translate-x-0',
         mobileOpen ? 'translate-x-0' : '-translate-x-full',
       )}>
-      <div className="px-5 py-5 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-glow">
-            <HardHat size={18} className="text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-white text-sm">DigiCom PMIS</div>
-            <div className="text-slate-500 text-xs">Communication Control</div>
+      <div className="border-b border-slate-800 px-4 py-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-12 min-w-0 flex-1 items-center rounded-xl bg-white px-3 shadow-sm">
+            <Image src="/brand/rencanix-logo.png" alt="Rencanix" width={360} height={110} className="h-auto w-full object-contain" priority />
           </div>
           <div className="ml-auto">
             <div className="hidden lg:block"><NotificationBell /></div>
@@ -166,6 +160,23 @@ export default function Sidebar() {
               <X size={18} />
             </button>
           </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-800/70 px-2 py-2 transition hover:bg-slate-800">
+          <Link
+            href="/profile"
+            onClick={() => { rememberScrollPosition(); setMobileOpen(false) }}
+            className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg"
+            title="Buka profil akun"
+          >
+            <UserAvatar user={user} size="sm" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-white">{user?.name}</div>
+              <div className="truncate text-xs text-slate-400">{user ? persona.title : ''}</div>
+            </div>
+          </Link>
+          <button onClick={logout} className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-700 hover:text-red-400" title="Keluar" aria-label="Keluar">
+            <LogOut size={14} />
+          </button>
         </div>
       </div>
 
@@ -206,29 +217,9 @@ export default function Sidebar() {
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           <div className="flex items-center gap-2 font-semibold">
             <Radio size={13} className="text-emerald-300" />
-            Realtime online
+            Sistem terhubung
           </div>
-          <p className="mt-1 text-[11px] leading-4 text-emerald-100/70">API, scheduler, n8n, dan Telegram dipantau dari dashboard.</p>
-        </div>
-      </div>
-
-      <div className="p-3 border-t border-slate-800">
-        <div className="flex items-center gap-2 rounded-xl px-1.5 py-1.5 transition hover:bg-slate-800">
-          <Link
-            href="/profile"
-            onClick={() => { rememberScrollPosition(); setMobileOpen(false) }}
-            className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1.5 py-1"
-            title="Buka profil akun"
-          >
-          <UserAvatar user={user} size="sm" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-white truncate">{user?.name}</div>
-            <div className="text-xs text-slate-500">{user ? persona.title : ''}</div>
-          </div>
-          </Link>
-          <button onClick={logout} className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-slate-700 transition" title="Keluar" aria-label="Keluar">
-            <LogOut size={14} />
-          </button>
+          <p className="mt-1 text-[11px] leading-4 text-emerald-100/70">Rencanix memantau layanan inti dan integrasi proyek secara real time.</p>
         </div>
       </div>
       </aside>
