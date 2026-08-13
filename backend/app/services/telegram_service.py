@@ -26,12 +26,15 @@ from app.services.n8n_service import n8n_service
 from app.services.report_workflow import apply_validation, can_access_task, validate_report
 from app.services.storage_service import storage_service
 from app.services.telegram_auto_grouping import (
+    accessible_open_tasks,
     auto_group_message,
     create_report_draft,
     format_clarification,
     format_grouping_confirmation,
     merge_ai_report_fields,
+    open_report_draft,
     parse_report_fields,
+    update_report_draft,
 )
 
 logger = logging.getLogger(__name__)
@@ -194,8 +197,10 @@ async def report_interactive(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("❌ Akun belum terdaftar.")
         db.close()
         return
-    tasks = db.query(Task).filter(Task.status != TaskStatus.DONE).order_by(Task.deadline.asc()).all()
-    tasks = [task for task in tasks if can_access_task(user, task)][:10]
+    tasks = sorted(
+        accessible_open_tasks(db, user),
+        key=lambda task: (task.deadline is None, task.deadline, task.id),
+    )[:10]
     if not tasks:
         db.close()
         await update.message.reply_text("Tidak ada task aktif yang dapat Anda laporkan.")
@@ -304,7 +309,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         db.close()
         return
 
-    task_id = context.user_data.get("selected_task_id")
+    active_report = _get_active_report(user, context, db)
+    task_id = (
+        active_report.workflow.task_id
+        if active_report and active_report.workflow
+        else context.user_data.get("selected_task_id")
+    )
     if not task_id:
         text = update.message.text.strip()
         result = auto_group_message(db, user, text)
@@ -344,12 +354,21 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     try:
         fields = await _enrich_fields_with_ai(text, user, parse_report_fields(text))
-        report = create_report_draft(
-            db=db,
-            user=user,
-            task=task,
-            fields=fields,
-            telegram_message_id=str(update.message.message_id),
+        report = (
+            update_report_draft(
+                db=db,
+                report=active_report,
+                fields=fields,
+                telegram_message_id=str(update.message.message_id),
+            )
+            if active_report
+            else create_report_draft(
+                db=db,
+                user=user,
+                task=task,
+                fields=fields,
+                telegram_message_id=str(update.message.message_id),
+            )
         )
         context.user_data["active_report_id"] = report.id
 
@@ -409,7 +428,10 @@ def _get_active_report(user: User, context: ContextTypes.DEFAULT_TYPE, db: Sessi
     # Vercel dapat memproses update berikutnya pada instance lain sehingga
     # context.user_data tidak selalu tersedia. Database menjadi sumber status
     # draft yang persisten untuk foto, dokumen, dan perintah /submit.
-    return query.order_by(DailyReport.created_at.desc(), DailyReport.id.desc()).first()
+    return query.order_by(
+        DailyReportWorkflow.updated_at.desc(),
+        DailyReport.id.desc(),
+    ).first()
 
 
 async def handle_structured_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -422,22 +444,12 @@ async def handle_structured_photo(update: Update, context: ContextTypes.DEFAULT_
         return
     report = _get_active_report(user, context, db)
     if not report or not report.workflow:
-        caption = update.message.caption or "Foto lapangan"
-        result = auto_group_message(db, user, caption)
-        if not result.is_confident:
-            await update.message.reply_text(format_clarification(result))
-            db.close()
-            return
-        report = create_report_draft(
-            db=db,
-            user=user,
-            task=result.task,
-            fields=await _enrich_fields_with_ai(caption, user, parse_report_fields(caption)),
-            telegram_message_id=str(update.message.message_id),
+        await update.message.reply_text(
+            "Foto belum disimpan. Jalankan /report dan pilih task terlebih dahulu, "
+            "lalu kirim foto untuk draft yang baru dibuka."
         )
-        context.user_data["active_report_id"] = report.id
-        context.user_data["selected_task_id"] = result.task.id
-        await update.message.reply_text(format_grouping_confirmation(report, result))
+        db.close()
+        return
     if report.workflow.status not in (ReportStatus.DRAFT, ReportStatus.NEEDS_REVISION):
         await update.message.reply_text("Laporan sedang direview; evidence sudah dikunci.")
         db.close()
@@ -486,22 +498,12 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     report = _get_active_report(user, context, db)
     if not report or not report.workflow:
-        caption = update.message.caption or update.message.document.file_name or "Dokumen lapangan"
-        result = auto_group_message(db, user, caption)
-        if not result.is_confident:
-            await update.message.reply_text(format_clarification(result))
-            db.close()
-            return
-        report = create_report_draft(
-            db=db,
-            user=user,
-            task=result.task,
-            fields=await _enrich_fields_with_ai(caption, user, parse_report_fields(caption)),
-            telegram_message_id=str(update.message.message_id),
+        await update.message.reply_text(
+            "Dokumen belum disimpan. Jalankan /report dan pilih task terlebih dahulu, "
+            "lalu kirim dokumen untuk draft yang baru dibuka."
         )
-        context.user_data["active_report_id"] = report.id
-        context.user_data["selected_task_id"] = result.task.id
-        await update.message.reply_text(format_grouping_confirmation(report, result))
+        db.close()
+        return
     if report.workflow.status not in (ReportStatus.DRAFT, ReportStatus.NEEDS_REVISION):
         await update.message.reply_text("Laporan sedang direview; evidence sudah dikunci.")
         db.close()
@@ -595,25 +597,76 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await my_tasks(query, context)
     elif query.data.startswith("select_task_"):
         task_id = int(query.data.replace("select_task_", ""))
-        context.user_data["selected_task_id"] = task_id
         db = get_db()
+        telegram_id = str(update.effective_user.id)
+        user = get_user_by_telegram(telegram_id, db)
         task = db.query(Task).filter(Task.id == task_id).first()
+        if (
+            not user
+            or not task
+            or task.status == TaskStatus.DONE
+            or not can_access_task(user, task)
+            or task.assigned_to != user.id
+        ):
+            db.close()
+            await query.edit_message_text(
+                "Task bukan assignment Anda atau sudah tidak tersedia. Jalankan /report kembali."
+            )
+            return
+        report = open_report_draft(
+            db=db,
+            user=user,
+            task=task,
+            telegram_message_id=str(query.id) if getattr(query, "id", None) else None,
+        )
+        context.user_data["selected_task_id"] = task_id
+        context.user_data["active_report_id"] = report.id
         requirements = list(task.requirements) if task else []
         checklist_template = "\n".join(
-            f"{item.code}: ya/tidak" for item in requirements
+            f"{item.code}: ya/tidak - {item.title}"
+            f"{' (wajib)' if item.is_mandatory else ' (opsional)'}"
+            for item in requirements
         )
-        title = task.title if task else f"Task #{task_id}"
-        db.close()
-        await query.edit_message_text(
-            f"Task dipilih: {title}\n\n"
-            "Kirim laporan dengan template:\n"
+        specification = task.specification
+        control = task.control
+        target_line = (
+            f"Target volume: {control.planned_quantity:g} {control.unit or 'unit'}\n"
+            f"Progress awal: {control.actual_quantity:g}/{control.planned_quantity:g} {control.unit or 'unit'}"
+            if control and control.planned_quantity is not None
+            else "Target volume: belum ditetapkan di detail task"
+        )
+        material_lines = "\n".join(
+            f"- {item.material_name}"
+            f"{f' ({item.planned_quantity:g} {item.unit or "unit"})' if item.planned_quantity is not None else ''}"
+            for item in list(task.materials)[:5]
+        )
+        required_photos = specification.required_photo_count if specification else 0
+        required_documents = specification.required_document_count if specification else 0
+        planned_people = control.planned_manpower if control and control.planned_manpower is not None else 0
+        prompt = (
+            f"Draft laporan #{report.id} dibuka dari detail task.\n\n"
+            "Sesi bukti baru aktif; foto/dokumen dari laporan sebelumnya tidak ikut dihitung.\n\n"
+            f"Project: {task.project.project_name}\n"
+            f"WBS: {specification.wbs_code if specification else '-'}\n"
+            f"Task: {task.title}\n"
+            f"Divisi: {task.division.division_name if task.division else '-'}\n"
+            f"Work package: {specification.work_package if specification else '-'}\n"
+            f"Lokasi: {(specification.location if specification else None) or (control.location if control else None) or '-'}\n"
+            f"{target_line}\n"
+            f"Acceptance criteria: {specification.acceptance_criteria if specification else '-'}\n"
+            f"Instruksi laporan: {(specification.reporting_instructions if specification else None) or '-'}\n"
+            f"Bukti wajib: {required_photos} foto, {required_documents} dokumen\n"
+            f"Material utama:\n{material_lines or '- Belum ada material terdaftar'}\n\n"
+            "Kirim laporan berdasarkan target di atas:\n"
             "Cuaca: cerah/hujan\n"
-            "Pekerja: 0\n"
-            "Progress: uraian volume dan hasil pekerjaan\n"
+            f"Pekerja: {planned_people}\n"
+            "Progress: uraikan volume aktual dan hasil pekerjaan\n"
             "Kendala: tidak ada / jelaskan kendala\n"
             f"{checklist_template}\n\n"
-            "Setelah draft tersimpan, kirim foto/dokumen lalu /submit."
+            "Setelah isi laporan tersimpan, kirim foto/dokumen lalu /submit."
         )
+        db.close()
+        await query.edit_message_text(prompt)
 
 
 # ─── App builder ────────────────────────────────────────────────
