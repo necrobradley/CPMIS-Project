@@ -4,6 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { authApi } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/api-error'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -13,11 +15,15 @@ export default function ForgotPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    // Simulasi (backend reset password bisa ditambah nanti)
-    await new Promise(r => setTimeout(r, 1500))
-    setSent(true)
-    setLoading(false)
-    toast.success('Email reset terkirim!')
+    try {
+      const response = await authApi.forgotPassword(email.trim())
+      setSent(true)
+      toast.success(response.data.message)
+    } catch (error: unknown) {
+      toast.error(apiErrorMessage(error, 'Permintaan reset password gagal'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -56,10 +62,10 @@ export default function ForgotPasswordPage() {
             <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <CheckCircle size={32} className="text-emerald-500" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Email Terkirim!</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Periksa Email Anda</h3>
             <p className="text-slate-500 text-sm mb-6">
-              Kami telah mengirimkan link reset password ke <strong>{email}</strong>.
-              Periksa inbox atau folder spam Anda.
+              Jika <strong>{email}</strong> terdaftar, tautan reset password telah dikirim.
+              Periksa inbox dan folder spam Anda.
             </p>
             <p className="text-xs text-slate-400">
               Link berlaku selama 1 jam.

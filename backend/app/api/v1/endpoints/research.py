@@ -41,7 +41,7 @@ def export_research_data(
     format: str = Query("json", pattern="^(json|csv)$"),
     anonymize: bool = Query(True),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.DIRECTOR)),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.DIRECTOR)),
 ):
     dataset = {
         "generated_at": datetime.utcnow().isoformat(),

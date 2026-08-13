@@ -21,7 +21,7 @@ def seed_operational_database(db):
         name="System Owner",
         email="owner@rencanix.test",
         password_hash=get_password_hash("owner-password-123"),
-        role=UserRole.ADMIN,
+        role=UserRole.OWNER,
         is_active=True,
     )
     db.add(owner)

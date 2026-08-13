@@ -9,6 +9,21 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = "change-this-in-production"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # Transactional email. Resend is preferred; SMTP supports personal
+    # Gmail/Outlook accounts when a custom sending domain is unavailable.
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "Rencanix <onboarding@resend.dev>"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_SSL: bool = True
+    SMTP_FROM: str = ""
+    EMAIL_VERIFICATION_TTL_HOURS: int = 24
+    EMAIL_INVITATION_TTL_HOURS: int = 72
+    PASSWORD_RESET_TTL_MINUTES: int = 60
 
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/ai_cpmis_db"
@@ -149,6 +164,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def transactional_email_configured(config=settings) -> bool:
+    """Return whether at least one supported email delivery provider is ready."""
+    return bool(
+        config.RESEND_API_KEY
+        or (config.SMTP_HOST and config.SMTP_USERNAME and config.SMTP_PASSWORD)
+    )
 
 
 def production_config_errors(config=settings) -> List[str]:

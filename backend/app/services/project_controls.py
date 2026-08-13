@@ -1141,7 +1141,7 @@ def project_controls_summary(db: Session, project: Project) -> dict:
 def my_work_summary(db: Session, user: User) -> dict:
     task_query = db.query(Task).filter(Task.status != TaskStatus.DONE)
     accessible_project_ids = None
-    if user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if user.role != UserRole.DIRECTOR:
         accessible_project_ids = {
             item.project_id for item in db.query(ProjectMembership).filter(
                 ProjectMembership.user_id == user.id,
@@ -1156,7 +1156,7 @@ def my_work_summary(db: Session, user: User) -> dict:
         )
         task_query = task_query.filter(Task.project_id.in_(accessible_project_ids or [-1]))
     tasks = task_query.order_by(Task.deadline).limit(120).all()
-    if user.role not in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if user.role != UserRole.DIRECTOR:
         tasks = [task for task in tasks if can_access_task(user, task)]
     tasks = tasks[:30]
 

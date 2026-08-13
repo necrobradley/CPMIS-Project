@@ -205,7 +205,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const approvalStatus = task.approval_status || 'approved'
   const sourceLabel = specification?.source_document_id
     ? `Dokumen #${specification.source_document_id}`
-    : task.ai_generated ? 'Hasil ekstraksi AI' : 'Input manual'
+    : task.ai_source?.toLowerCase().includes('dataset terstruktur')
+      ? 'Dataset terstruktur (impor)'
+      : task.ai_generated ? 'Hasil ekstraksi AI' : 'Input manual'
 
   const tabs: { key: DetailTab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Ringkasan' },

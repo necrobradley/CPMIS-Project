@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import Cookies from 'js-cookie'
 import { authApi } from '@/lib/api'
 
-export type UserRole = 'admin' | 'director' | 'manager' | 'staff' | 'subcontractor'
+export type UserRole = 'owner' | 'admin' | 'director' | 'manager' | 'staff' | 'subcontractor'
 
 export interface User {
   id: number
@@ -14,6 +14,9 @@ export interface User {
   telegram_id?: string
   avatar_url?: string
   is_active: boolean
+  email_verified_at?: string
+  email_verification_required?: boolean
+  must_set_password?: boolean
   created_at: string
 }
 

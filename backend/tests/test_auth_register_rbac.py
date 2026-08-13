@@ -36,7 +36,7 @@ async def test_public_register_rejects_director_role():
         await register()
 
     assert exc.value.status_code == 403
-    assert "admin aplikasi" in exc.value.detail
+    assert "Admin Proyek" in exc.value.detail
     assert db.query(User).filter(User.email == "director-candidate@example.com").first() is None
 
 

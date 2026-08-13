@@ -72,9 +72,9 @@ def _get_item(db: Session, communication_id: int) -> CommunicationItem:
 
 
 def _can_access(item: CommunicationItem, current_user: User, db: Session) -> bool:
-    if current_user.role in (UserRole.ADMIN, UserRole.DIRECTOR):
+    if current_user.role == UserRole.DIRECTOR:
         return True
-    if current_user.role == UserRole.MANAGER:
+    if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
         return can_access_project(current_user, item.project)
     if item.created_by == current_user.id or item.assigned_to == current_user.id:
         return True
@@ -275,14 +275,20 @@ def escalate_overdue_communications(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER)),
 ):
-    escalated = run_sla_escalations(db)
+    project_ids = None
+    if current_user.role != UserRole.DIRECTOR:
+        project_ids = {
+            project.id for project in db.query(Project).all()
+            if can_access_project(current_user, project)
+        }
+    escalated = run_sla_escalations(db, project_ids=project_ids)
     log_audit(
         db,
         actor_id=current_user.id,
         action="communication.sla_escalated",
         entity_type="communication",
         entity_id=None,
-        project_id=None,
+        project_id=next(iter(project_ids)) if project_ids and len(project_ids) == 1 else None,
         summary=f"SLA escalation dijalankan untuk {escalated} item",
         after={"escalated": escalated},
     )

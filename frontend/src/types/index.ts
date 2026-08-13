@@ -1,7 +1,7 @@
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
 export type TaskStatus    = 'todo' | 'in_progress' | 'review' | 'done' | 'blocked'
 export type TaskPriority  = 'low' | 'medium' | 'high' | 'critical'
-export type UserRole      = 'admin' | 'director' | 'manager' | 'staff' | 'subcontractor'
+export type UserRole      = 'owner' | 'admin' | 'director' | 'manager' | 'staff' | 'subcontractor'
 export type DocumentType  = 'tender' | 'contract' | 'daily_report' | 'photo' | 'drawing' | 'other'
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 export type ApprovalType = 'document' | 'task' | 'instruction' | 'scope_change' | 'other'
@@ -164,6 +164,9 @@ export interface User {
   telegram_id?: string
   avatar_url?: string
   is_active:   boolean
+  email_verified_at?: string
+  email_verification_required?: boolean
+  must_set_password?: boolean
   created_at:  string
 }
 

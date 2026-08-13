@@ -78,6 +78,17 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Akun tidak aktif",
         )
+    token_auth_version = payload.get("av")
+    if token_auth_version is None or int(token_auth_version) != user.auth_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesi sudah tidak berlaku. Silakan masuk kembali.",
+        )
+    if user.email_verification_required and user.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email belum diverifikasi.",
+        )
     return user
 
 

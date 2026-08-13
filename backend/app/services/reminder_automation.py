@@ -14,6 +14,7 @@ from app.models.user import (
     User,
     UserRole,
 )
+from app.services.report_workflow import can_access_task
 from app.services.project_role_catalog import (
     PROJECT_CROSS_DIVISION_ROLE_CODES,
     PROJECT_DIVISION_LEAD_ROLE_CODES,
@@ -143,7 +144,7 @@ def _stakeholder_ids_for_task(db: Session, task: Task, kind: str) -> list[int]:
             User.is_active == True,
             User.role.in_([UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER]),
         ).all()
-        ids.extend(user.id for user in managers)
+        ids.extend(user.id for user in managers if can_access_task(user, task))
 
     return _unique_ids(ids)
 

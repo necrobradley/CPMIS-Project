@@ -57,6 +57,11 @@ export const authApi = {
     api.post('/auth/login', { email, password }),
   me: () => api.get('/auth/me'),
   register: (data: Record<string, unknown>) => api.post('/auth/register', data),
+  verifyEmail: (token: string) => api.post('/auth/email/verify', { token }),
+  resendVerification: (email: string) => api.post('/auth/email/resend-verification', { email }),
+  acceptInvitation: (token: string, password: string) => api.post('/auth/invitation/accept', { token, password }),
+  forgotPassword: (email: string) => api.post('/auth/password/forgot', { email }),
+  resetPassword: (token: string, password: string) => api.post('/auth/password/reset', { token, password }),
 }
 
 // ── Projects ──────────────────────────────────
@@ -160,6 +165,7 @@ export const usersApi = {
   importCsv: (formData: FormData) =>
     api.post('/users/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   updateSetup: (id: number, data: Record<string, unknown>) => api.patch(`/users/${id}/setup`, data),
+  resendInvitation: (id: number) => api.post(`/users/${id}/resend-invitation`),
   changeMyPassword: (data: Record<string, unknown>) => api.patch('/users/me/password', data),
   uploadMyAvatar: (formData: FormData) =>
     api.post('/users/me/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -211,9 +217,12 @@ export const notificationsApi = {
 
 // Settings
 export const settingsApi = {
-  features: () => api.get('/settings/features'),
+  features: (projectId?: number) => api.get('/settings/features', { params: projectId ? { project_id: projectId } : {} }),
   updateFeature: (featureKey: string, enabled: boolean) =>
     api.patch(`/settings/features/${featureKey}`, { enabled }),
+  projectFeatures: (projectId: number) => api.get(`/settings/projects/${projectId}/features`),
+  updateProjectFeature: (projectId: number, featureKey: string, enabled: boolean) =>
+    api.patch(`/settings/projects/${projectId}/features/${featureKey}`, { enabled }),
   commercialPlans: () => api.get('/settings/commercial/plans'),
   commercialReadiness: () => api.get('/settings/commercial/readiness'),
   commercialTenants: () => api.get('/settings/commercial/tenants'),
@@ -272,6 +281,12 @@ export const researchApi = {
 // System readiness
 export const systemApi = {
   status: () => api.get('/system/status'),
+  bootstrapOwner: (
+    data: { name: string; email: string; password: string },
+    bootstrapSecret: string,
+  ) => api.post('/system/bootstrap/owner', data, {
+    headers: { 'X-Bootstrap-Secret': bootstrapSecret },
+  }),
   bootstrapProjectDataset: (formData: FormData, bootstrapSecret: string) =>
     api.post('/system/bootstrap/project-dataset', formData, {
       headers: {

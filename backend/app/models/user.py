@@ -18,6 +18,7 @@ from app.db.database import Base
 # ─────────────────────────────────────────────
 
 class UserRole(str, enum.Enum):
+    OWNER = "owner"
     ADMIN = "admin"
     DIRECTOR = "director"
     MANAGER = "manager"
@@ -168,6 +169,10 @@ class User(Base):
     phone = Column(String(20), nullable=True)
     avatar_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
+    email_verified_at = Column(DateTime, nullable=True)
+    email_verification_required = Column(Boolean, default=False, nullable=False)
+    must_set_password = Column(Boolean, default=False, nullable=False)
+    auth_version = Column(Integer, default=1, nullable=False)
     division_id = Column(Integer, ForeignKey("divisions.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -179,6 +184,23 @@ class User(Base):
     uploaded_documents = relationship("Document", back_populates="uploader")
     daily_reports = relationship("DailyReport", back_populates="reporter")
     project_memberships = relationship("ProjectMembership", back_populates="user", cascade="all, delete-orphan")
+
+
+class EmailActionToken(Base):
+    """Hashed, single-use token for verification, invitation, and password reset."""
+    __tablename__ = "email_action_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    purpose = Column(String(30), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id])
+    requester = relationship("User", foreign_keys=[requested_by])
 
 
 # ─────────────────────────────────────────────
@@ -210,6 +232,9 @@ class Project(Base):
     communications = relationship("CommunicationItem", back_populates="project", cascade="all, delete-orphan")
     memberships = relationship("ProjectMembership", back_populates="project", cascade="all, delete-orphan")
     role_policies = relationship("ProjectRolePolicy", back_populates="project", cascade="all, delete-orphan")
+    feature_entitlements = relationship(
+        "ProjectFeatureEntitlement", back_populates="project", cascade="all, delete-orphan"
+    )
     vendor_profiles = relationship("VendorProfile", back_populates="project", cascade="all, delete-orphan")
     productivity_benchmarks = relationship(
         "ProductivityBenchmark", back_populates="project", cascade="all, delete-orphan"
@@ -864,6 +889,25 @@ class FeatureFlag(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    updater = relationship("User", foreign_keys=[updated_by])
+
+
+class ProjectFeatureEntitlement(Base):
+    __tablename__ = "project_feature_entitlements"
+    __table_args__ = (
+        UniqueConstraint("project_id", "feature_key", name="uq_project_feature_entitlement"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    feature_key = Column(String(80), ForeignKey("feature_flags.feature_key"), nullable=False, index=True)
+    enabled = Column(Boolean, default=True, nullable=False)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="feature_entitlements")
+    feature = relationship("FeatureFlag", foreign_keys=[feature_key])
     updater = relationship("User", foreign_keys=[updated_by])
 
 

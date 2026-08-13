@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building2, CheckCircle2, Database, FileArchive, Loader2, Upload, UserCheck } from 'lucide-react'
+import { Bot, Building2, CheckCircle2, Database, FileArchive, Loader2, Upload, UserCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import { systemApi } from '@/lib/api'
+import { documentsApi, systemApi } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/api-error'
-import { prepareProjectDatasetArchive } from '@/lib/project-dataset-import'
+import { extractProjectSourceDocuments, prepareProjectDatasetArchive } from '@/lib/project-dataset-import'
 
 type ProjectDatasetImportResult = {
   project_id: number
@@ -40,6 +40,11 @@ type ProjectDatasetImportResult = {
   demo_communications?: number
   demo_notifications?: number
   demo_vendors?: number
+  source_documents_total?: number
+  source_documents_uploaded?: number
+  source_documents_analyzed?: number
+  source_documents_skipped?: number
+  source_documents_failed?: number
 }
 
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024
@@ -48,11 +53,28 @@ function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(2)} MB`
 }
 
+function documentTypeFor(filename: string) {
+  const value = filename.toLowerCase()
+  if (value.includes('tender')) return 'tender'
+  if (value.includes('contract')) return 'contract'
+  if (value.includes('report') || value.includes('laporan')) return 'daily_report'
+  if (value.includes('drawing') || value.includes('gambar')) return 'drawing'
+  return 'other'
+}
+
+function supportsAiAnalysis(file: File) {
+  return file.type === 'application/pdf'
+    || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+}
+
 export default function ProjectDatasetImport() {
   const queryClient = useQueryClient()
   const [dataset, setDataset] = useState<File | null>(null)
   const [telegramId, setTelegramId] = useState('')
   const [result, setResult] = useState<ProjectDatasetImportResult | null>(null)
+  const [processSourceDocuments, setProcessSourceDocuments] = useState(true)
+  const [sourceProgress, setSourceProgress] = useState({ current: '', completed: 0, total: 0 })
 
   const importDataset = useMutation({
     mutationFn: async () => {
@@ -65,8 +87,62 @@ export default function ProjectDatasetImport() {
       const formData = new FormData()
       formData.append('dataset', preparedArchive)
       if (telegramId.trim()) formData.append('telegram_id', telegramId.trim())
-      return systemApi.importProjectDataset(formData)
+      const response = await systemApi.importProjectDataset(formData)
+      if (!processSourceDocuments) return response
+
+      const sourceDocuments = await extractProjectSourceDocuments(dataset)
+      setSourceProgress({ current: '', completed: 0, total: sourceDocuments.length })
+      const existingResponse = await documentsApi.list(response.data.project_id)
+      const existingNames = new Set<string>(
+        existingResponse.data.map((document: { file_name: string }) => document.file_name.toLowerCase()),
+      )
+      let uploaded = 0
+      let analyzed = 0
+      let skipped = 0
+      let failed = 0
+
+      for (const sourceDocument of sourceDocuments) {
+        if (existingNames.has(sourceDocument.name.toLowerCase())) {
+          skipped += 1
+          setSourceProgress((current) => ({
+            current: sourceDocument.name,
+            completed: current.completed + 1,
+            total: current.total,
+          }))
+          continue
+        }
+        setSourceProgress((current) => ({ ...current, current: sourceDocument.name }))
+        const documentForm = new FormData()
+        documentForm.append('project_id', String(response.data.project_id))
+        documentForm.append('doc_type', documentTypeFor(sourceDocument.name))
+        documentForm.append('analyze_with_ai', String(supportsAiAnalysis(sourceDocument)))
+        documentForm.append('file', sourceDocument)
+        try {
+          const uploadResponse = await documentsApi.upload(documentForm)
+          uploaded += 1
+          if (uploadResponse.data.ai_analysis_complete) analyzed += 1
+          existingNames.add(sourceDocument.name.toLowerCase())
+        } catch {
+          failed += 1
+        }
+        setSourceProgress((current) => ({
+          current: sourceDocument.name,
+          completed: current.completed + 1,
+          total: current.total,
+        }))
+      }
+
+      response.data = {
+        ...response.data,
+        source_documents_total: sourceDocuments.length,
+        source_documents_uploaded: uploaded,
+        source_documents_analyzed: analyzed,
+        source_documents_skipped: skipped,
+        source_documents_failed: failed,
+      }
+      return response
     },
+    onMutate: () => setSourceProgress({ current: '', completed: 0, total: 0 }),
     onSuccess: (response) => {
       setResult(response.data)
       for (const queryKey of ['projects', 'tasks', 'users', 'controls', 'digital-twin']) {
@@ -95,8 +171,8 @@ export default function ProjectDatasetImport() {
           <div>
             <h2 className="text-base font-semibold text-slate-900">Import paket data proyek</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Pilih ZIP proyek yang sudah disiapkan. Sistem akan membuat atau memperbarui proyek,
-              akun lintas role, task/WBS, Digital Twin, rule, dan data reasoning tanpa menggandakan proyek.
+              Dataset terstruktur membuat proyek, akun, task/WBS, Digital Twin, rule, dan reasoning.
+              Dokumen sumber di dalam ZIP dapat diunggah dan dianalisis AI sebagai tahap terpisah yang terlihat.
             </p>
             <a
               href="/demo/CPMIS_Demo_Pusat_Inovasi_2026.zip"
@@ -110,7 +186,7 @@ export default function ProjectDatasetImport() {
       </div>
 
       <form onSubmit={submit} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.55fr)_auto] lg:items-end">
-        <label className="block">
+        <div className="block">
           <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Paket data proyek</span>
           <input
             type="file"
@@ -121,7 +197,19 @@ export default function ProjectDatasetImport() {
               setResult(null)
             }}
           />
-        </label>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-violet-100 bg-violet-50/60 p-3">
+            <input
+              type="checkbox"
+              checked={processSourceDocuments}
+              onChange={(event) => setProcessSourceDocuments(event.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-violet-600"
+            />
+            <span>
+              <span className="block text-xs font-semibold text-violet-900">Proses dokumen sumber dengan AI</span>
+              <span className="mt-0.5 block text-[11px] leading-4 text-violet-700">PDF/DOCX dianalisis Nemotron; XLSX disimpan sebagai dokumen proyek.</span>
+            </span>
+          </label>
+        </div>
         <label className="block">
           <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Telegram ID staf (opsional)</span>
           <input
@@ -134,14 +222,18 @@ export default function ProjectDatasetImport() {
         </label>
         <button disabled={importDataset.isPending || !dataset} className="btn-primary justify-center lg:min-w-44">
           {importDataset.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-          {importDataset.isPending ? 'Sedang mengimpor...' : 'Import proyek'}
+          {importDataset.isPending
+            ? sourceProgress.total > 0
+              ? `Dokumen ${sourceProgress.completed}/${sourceProgress.total}`
+              : 'Mengimpor struktur...'
+            : 'Import proyek'}
         </button>
       </form>
 
       <div className="px-5 pb-5">
         <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Browser mengirim berkas inti dan manifest demo opsional; lampiran besar lain di dalam ZIP tidak ikut dikirim.
+            Dataset terstruktur diproses lebih dulu. Dokumen sumber dikirim satu per satu agar progres AI terlihat dan kegagalan satu file tidak membatalkan proyek.
           </span>
           {dataset && (
             <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-slate-700">
@@ -149,6 +241,23 @@ export default function ProjectDatasetImport() {
             </span>
           )}
         </div>
+
+        {importDataset.isPending && sourceProgress.total > 0 && (
+          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-violet-900">
+              <Bot size={16} className="animate-pulse" /> Nemotron memproses dokumen sumber
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-violet-100">
+              <div
+                className="h-full rounded-full bg-violet-600 transition-all"
+                style={{ width: `${Math.round((sourceProgress.completed / sourceProgress.total) * 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 truncate text-xs text-violet-700">
+              {sourceProgress.current || 'Menyiapkan dokumen'} · {sourceProgress.completed}/{sourceProgress.total}
+            </p>
+          </div>
+        )}
 
         {result && (
           <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-5">
@@ -190,6 +299,12 @@ export default function ProjectDatasetImport() {
             {result.demo_features_seeded && (
               <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800">
                 Data presentasi aktif: {result.demo_documents || 0} dokumen, {result.demo_reports || 0} laporan, {result.demo_approvals || 0} approval, {result.demo_communications || 0} komunikasi, {result.demo_notifications || 0} notifikasi, dan {result.demo_vendors || 0} vendor.
+              </div>
+            )}
+            {typeof result.source_documents_total === 'number' && (
+              <div className="mt-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
+                Dokumen sumber: {result.source_documents_uploaded || 0} tersimpan, {result.source_documents_analyzed || 0} dianalisis Nemotron,
+                {' '}{result.source_documents_skipped || 0} dilewati karena sudah ada, dan {result.source_documents_failed || 0} gagal.
               </div>
             )}
             {result.generated_accounts && result.generated_accounts.length > 0 && (

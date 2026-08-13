@@ -186,7 +186,54 @@ Jangan mengarang spesifikasi material. Isi hanya data yang tertulis atau didukun
             return " ".join(
                 node.text or "" for node in root.iter(namespace + "t")
             )
+        if suffix == "xlsx":
+            return AIService._extract_xlsx_text(content)
         return content.decode("utf-8", errors="ignore")
+
+    @staticmethod
+    def _extract_xlsx_text(content: bytes) -> str:
+        """Ekstrak nilai sel XLSX tanpa bergantung pada runtime spreadsheet desktop."""
+        spreadsheet_ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        lines: list[str] = []
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            shared_strings: list[str] = []
+            if "xl/sharedStrings.xml" in archive.namelist():
+                shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+                for item in shared_root.iter(spreadsheet_ns + "si"):
+                    shared_strings.append(
+                        "".join(node.text or "" for node in item.iter(spreadsheet_ns + "t"))
+                    )
+
+            sheet_paths = sorted(
+                name
+                for name in archive.namelist()
+                if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
+            )
+            for sheet_number, sheet_path in enumerate(sheet_paths, start=1):
+                lines.append(f"[Sheet {sheet_number}]")
+                sheet_root = ET.fromstring(archive.read(sheet_path))
+                for row in sheet_root.iter(spreadsheet_ns + "row"):
+                    row_values: list[str] = []
+                    for cell in row.iter(spreadsheet_ns + "c"):
+                        cell_type = cell.attrib.get("t")
+                        if cell_type == "inlineStr":
+                            value = "".join(
+                                node.text or "" for node in cell.iter(spreadsheet_ns + "t")
+                            )
+                        else:
+                            value_node = cell.find(spreadsheet_ns + "v")
+                            value = value_node.text if value_node is not None and value_node.text else ""
+                            if cell_type == "s" and value:
+                                try:
+                                    value = shared_strings[int(value)]
+                                except (IndexError, ValueError):
+                                    pass
+                        row_values.append(value)
+                    if any(value.strip() for value in row_values):
+                        lines.append("\t".join(row_values))
+
+        return "\n".join(lines)
 
     # -----------------------------------------------------------------------------
     # TASK GENERATION

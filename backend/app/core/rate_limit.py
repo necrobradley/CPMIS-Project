@@ -78,7 +78,10 @@ def sensitive_rate_limit_rules(settings: RateLimitSettings) -> list[RateLimitRul
     return [
         RateLimitRule(
             name="auth",
-            path_prefixes=("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh"),
+            path_prefixes=(
+                "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh",
+                "/api/v1/auth/email/", "/api/v1/auth/invitation/", "/api/v1/auth/password/",
+            ),
             methods=("POST",),
             limit=settings.RATE_LIMIT_AUTH_PER_MINUTE,
         ),

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuthStore } from '@/lib/store'
+import { authApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { Building2, Lock, Mail, Loader2 } from 'lucide-react'
 
@@ -11,20 +12,38 @@ export default function LoginPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
+  const [verificationNeeded, setVerificationNeeded] = useState(false)
+  const [resending, setResending] = useState(false)
   const login  = useAuthStore(s => s.login)
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setVerificationNeeded(false)
     try {
       await login(email, password)
       toast.success('Berhasil masuk!')
-      router.push('/dashboard')
+      const loggedInUser = useAuthStore.getState().user
+      router.push(loggedInUser?.role === 'owner' ? '/owner' : '/dashboard')
     } catch (err: unknown) {
       const msg = (err as {response?:{data?:{detail?:string}}})?.response?.data?.detail ?? 'Login gagal.'
+      if (msg.toLowerCase().includes('belum diverifikasi')) setVerificationNeeded(true)
       toast.error(msg)
     } finally { setLoading(false) }
+  }
+
+  async function resendVerification() {
+    if (!email.trim()) return toast.error('Masukkan email akun terlebih dahulu')
+    setResending(true)
+    try {
+      const response = await authApi.resendVerification(email.trim())
+      toast.success(response.data.message)
+    } catch {
+      toast.error('Email verifikasi belum dapat dikirim')
+    } finally {
+      setResending(false)
+    }
   }
 
   return (
@@ -78,11 +97,17 @@ export default function LoginPage() {
               {loading ? <Loader2 size={18} className="animate-spin"/> : <Building2 size={18}/>}
               {loading ? 'Memproses...' : 'Masuk'}
             </button>
+            {verificationNeeded && (
+              <button type="button" disabled={resending} onClick={resendVerification} className="btn-secondary w-full justify-center">
+                {resending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                Kirim ulang email verifikasi
+              </button>
+            )}
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm font-medium text-slate-600">Akun dibuat oleh admin aplikasi perusahaan.</p>
-            <p className="mt-1 text-xs text-slate-400">Hubungi admin untuk aktivasi akun atau reset temporary password.</p>
+            <p className="text-sm font-medium text-slate-600">Akun tim dibuat oleh Admin Proyek.</p>
+            <p className="mt-1 text-xs text-slate-400">Hubungi Admin Proyek Anda untuk aktivasi atau pengiriman ulang undangan.</p>
             <Link href="/setup" className="mt-4 inline-flex text-sm font-semibold text-brand-600 hover:text-brand-700">
               Setup awal dan import paket data proyek
             </Link>
