@@ -53,7 +53,7 @@ type AIImportRow = {
   project_role_label: string
   confidence: number
   reasoning: string
-  mapping_source: 'ai' | 'system_fallback'
+  mapping_source: 'ai' | 'system_fallback' | 'legacy_dataset'
   existing_account: boolean
 }
 type AIMappingPreview = {
@@ -112,6 +112,8 @@ export default function UsersPage() {
 
   const activeUsers   = users.filter((u) => u.is_active)
   const withTelegram  = users.filter((u) => u.telegram_id)
+  const legacyDatasetRows = aiMappedRows.filter((row) => row.mapping_source === 'legacy_dataset').length
+  const onlyLegacyDataset = aiMappedRows.length > 0 && legacyDatasetRows === aiMappedRows.length
   const selectedUser = useMemo(
     () => users.find((user) => user.id === Number(selectedUserId)),
     [selectedUserId, users]
@@ -197,16 +199,15 @@ export default function UsersPage() {
       toast.error(error.response?.data?.detail || 'AI gagal memetakan posisi pegawai'),
   })
   const importUsers = useMutation({
-    mutationFn: () => usersApi.commitEmployeeMapping(
-      aiMappedRows.filter((row) => !row.existing_account)
-    ),
+    mutationFn: () => usersApi.commitEmployeeMapping(aiMappedRows),
     onSuccess: (response) => {
       qc.invalidateQueries({ queryKey: ['users'] })
+      if (selectedProjectId) qc.invalidateQueries({ queryKey: ['project-members', selectedProjectId] })
       setImportResults(response.data.results || [])
       setAiMappedRows([])
       setAiMappingInfo(null)
       setImportFile(null)
-      toast.success(`${response.data.created || 0} akun dibuat dari hasil review AI`)
+      toast.success(`${response.data.created || 0} akun dibuat, ${response.data.updated || 0} akun lama digunakan kembali`)
     },
     onError: (error: { response?: { data?: { detail?: string } } }) =>
       toast.error(error.response?.data?.detail || 'Gagal membuat akun dari hasil review'),
@@ -272,6 +273,8 @@ export default function UsersPage() {
       role: user.role,
       phone: user.phone || '',
       telegram_id: user.telegram_id || '',
+      project_division_id: user.project_division_id ? String(user.project_division_id) : '',
+      project_role: user.project_role || 'staff',
     })
   }
 
@@ -357,7 +360,7 @@ export default function UsersPage() {
             </div>
             <div>
                 <h2 className="font-semibold text-slate-900">Pemetaan posisi dan pembuatan akun dengan AI</h2>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Isi hanya nama, email, dan posisi. AI memetakan posisi ke role proyek dan divisi; sistem menentukan hak akses. Admin meninjau hasilnya sebelum akun dibuat.</p>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Format baru cukup berisi nama, email, dan posisi untuk dipetakan AI. Dataset akun lama yang sudah memiliki division_name dan project_role juga tetap dapat digunakan tanpa mengubah assignment-nya.</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3 text-xs font-semibold">
@@ -384,37 +387,39 @@ export default function UsersPage() {
           />
           <button disabled={previewEmployeeMapping.isPending || !importFile} className="btn-primary justify-center">
             {previewEmployeeMapping.isPending ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />}
-            {previewEmployeeMapping.isPending ? 'AI sedang memetakan...' : 'Petakan posisi dengan AI'}
+            {previewEmployeeMapping.isPending ? 'Memeriksa data pengguna...' : 'Preview & petakan pengguna'}
           </button>
         </form>
         <div className="px-5 pb-5">
           <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-xs leading-5 text-cyan-900">
-            Tahap 1 hanya membuat preview. <strong>Tidak ada akun yang dibuat</strong> sampai Anda memeriksa hasil AI dan menekan tombol konfirmasi di bawah tabel.
+            Tahap 1 hanya membuat preview. <strong>Tidak ada akun yang dibuat</strong> sampai Anda memeriksa hasil pemetaan AI atau assignment dari dataset lama, lalu menekan tombol konfirmasi.
           </div>
           {aiMappedRows.length > 0 && (
             <div className="mt-5 space-y-4">
               <div className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${aiMappingInfo?.ai_status === 'fallback' ? 'border-amber-300 bg-amber-50' : 'border-violet-200 bg-violet-50'}`}>
                 <div>
-                  <p className={`text-sm font-semibold ${aiMappingInfo?.ai_status === 'fallback' ? 'text-amber-950' : 'text-violet-950'}`}>{aiMappingInfo?.ai_status === 'fallback' ? 'Review pemetaan fallback sistem' : 'Review hasil pemetaan AI'}</p>
+                  <p className={`text-sm font-semibold ${aiMappingInfo?.ai_status === 'fallback' ? 'text-amber-950' : 'text-violet-950'}`}>{onlyLegacyDataset ? 'Review assignment dataset lama' : aiMappingInfo?.ai_status === 'fallback' ? 'Review pemetaan fallback sistem' : 'Review hasil pemetaan AI'}</p>
                   <p className={`mt-1 text-xs ${aiMappingInfo?.ai_status === 'fallback' ? 'text-amber-800' : 'text-violet-800'}`}>
-                    Model: {aiMappingInfo?.ai_provider}/{aiMappingInfo?.ai_model} · {aiMappedRows.length} baris · {aiMappingInfo?.fallback_count || 0} fallback sistem
+                    {onlyLegacyDataset
+                      ? `${legacyDatasetRows} baris assignment lama tervalidasi tanpa mengubah role dan divisi`
+                      : `Model: ${aiMappingInfo?.ai_provider}/${aiMappingInfo?.ai_model} · ${aiMappedRows.length} baris · ${aiMappingInfo?.fallback_count || 0} fallback sistem`}
                   </p>
                   {aiMappingInfo?.ai_error && <p className="mt-2 max-w-3xl text-xs font-medium text-amber-900">{aiMappingInfo.ai_error}</p>}
                 </div>
                 <button
                   type="button"
-                  disabled={importUsers.isPending || aiMappedRows.every((row) => row.existing_account)}
+                  disabled={importUsers.isPending || aiMappedRows.length === 0}
                   onClick={() => importUsers.mutate()}
                   className="btn-primary justify-center"
                 >
                   {importUsers.isPending ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                  {importUsers.isPending ? 'Membuat akun...' : `Konfirmasi & buat ${aiMappedRows.filter((row) => !row.existing_account).length} akun`}
+                  {importUsers.isPending ? 'Memproses akun...' : `Konfirmasi & proses ${aiMappedRows.length} akun`}
                 </button>
               </div>
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="min-w-[1180px] w-full">
                   <thead className="bg-slate-50">
-                    <tr>{['Pengguna', 'Posisi sumber', 'Role proyek hasil AI', 'Divisi', 'Keyakinan', 'Status'].map((header) => <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{header}</th>)}</tr>
+                    <tr>{['Pengguna', 'Posisi sumber', 'Role proyek', 'Divisi', 'Keyakinan', 'Status'].map((header) => <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{header}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {aiMappedRows.map((row) => (
@@ -428,7 +433,6 @@ export default function UsersPage() {
                           <select
                             className="input min-w-[220px] text-xs"
                             value={row.project_role}
-                            disabled={row.existing_account}
                             onChange={(event) => {
                               const selected = roleOptions.find((role) => role.code === event.target.value)
                               updateMappedRow(row.row, {
@@ -439,13 +443,12 @@ export default function UsersPage() {
                           >
                             {roleOptions.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
                           </select>
-                          <p className="mt-1 text-[11px] text-slate-400" title={row.reasoning}>{row.mapping_source === 'ai' ? 'Dipetakan AI' : 'Fallback sistem'} · akses {row.role}</p>
+                          <p className="mt-1 text-[11px] text-slate-400" title={row.reasoning}>{row.mapping_source === 'ai' ? 'Dipetakan AI' : row.mapping_source === 'legacy_dataset' ? 'Dataset lama tervalidasi' : 'Fallback sistem'} · akses {row.role}</p>
                         </td>
                         <td className="px-4 py-3">
                           <input
                             className="input min-w-[180px] text-xs"
                             value={row.division_name}
-                            disabled={row.existing_account}
                             onChange={(event) => updateMappedRow(row.row, { division_name: event.target.value })}
                           />
                         </td>
@@ -453,7 +456,7 @@ export default function UsersPage() {
                           <span className={`badge ${row.confidence >= 0.8 ? 'badge-success' : row.confidence >= 0.6 ? 'badge-warning' : 'badge-danger'}`}>{Math.round(row.confidence * 100)}%</span>
                         </td>
                         <td className="px-4 py-3 text-xs">
-                          {row.existing_account ? <span className="badge badge-warning">Email sudah terdaftar</span> : <span className="badge badge-success">Siap dibuat</span>}
+                          {row.existing_account ? <span className="badge badge-warning">Akun lama · assignment akan diperbarui</span> : <span className="badge badge-success">Siap dibuat</span>}
                         </td>
                       </tr>
                     ))}
@@ -473,7 +476,7 @@ export default function UsersPage() {
                     <tr key={`${item.row}-${item.email}`}>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.row}</td>
                       <td className="px-4 py-3 text-xs font-medium text-slate-800">{item.email}</td>
-                      <td className="px-4 py-3"><span className={item.status === 'invited' ? 'badge-success badge' : item.status === 'created' || item.status === 'skipped' ? 'badge-warning badge' : 'badge-danger badge'}>{item.status}</span></td>
+                      <td className="px-4 py-3"><span className={item.status === 'invited' || item.status === 'updated' ? 'badge-success badge' : item.status === 'created' || item.status === 'skipped' ? 'badge-warning badge' : 'badge-danger badge'}>{item.status}</span></td>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.role || '-'}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{item.message}</td>
                     </tr>
@@ -593,7 +596,7 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {['Aktivasi', 'Pengguna', 'Role', 'Kontak', 'Telegram', 'Status', 'Bergabung'].map((h) => (
+                  {['Aktivasi', 'Pengguna', 'Role Aplikasi', 'Role Proyek', 'Divisi Proyek', 'Kontak', 'Telegram', 'Status', 'Bergabung'].map((h) => (
                     <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                       {h}
                     </th>
@@ -628,6 +631,16 @@ export default function UsersPage() {
                     </td>
                     <td className="px-5 py-4">
                       <span className={ROLE_COLORS[u.role] + ' badge'}>{ROLE_LABELS[u.role]}</span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {u.project_role ? (
+                        <span className="badge-info badge">{u.project_role_label || u.project_role}</span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="text-xs font-medium text-slate-600">{u.project_division_name || 'Tanpa divisi'}</span>
                     </td>
                     <td className="px-5 py-4">
                       {u.phone ? (

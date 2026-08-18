@@ -169,6 +169,11 @@ export interface User {
   email_verification_required?: boolean
   must_set_password?: boolean
   created_at:  string
+  project_id?: number
+  project_division_id?: number
+  project_division_name?: string
+  project_role?: string
+  project_role_label?: string
 }
 
 export interface DailyReport {

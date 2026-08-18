@@ -165,7 +165,11 @@ def _ensure_user_in_admin_project(db: Session, admin: User, user_id: int) -> Non
         raise HTTPException(status_code=404, detail="User tidak ditemukan pada proyek Admin Proyek ini")
 
 
-def _safe_user(user: User, viewer: User) -> dict:
+def _safe_user(
+    user: User,
+    viewer: User,
+    membership: Optional[ProjectMembership] = None,
+) -> dict:
     expose_contact = viewer.role in (UserRole.ADMIN, UserRole.DIRECTOR, UserRole.MANAGER) or user.id == viewer.id
     return {
         "id": user.id, "name": user.name,
@@ -180,6 +184,16 @@ def _safe_user(user: User, viewer: User) -> dict:
         "email_verification_required": user.email_verification_required,
         "must_set_password": user.must_set_password,
         "created_at": user.created_at,
+        "project_id": membership.project_id if membership else None,
+        "project_division_id": membership.division_id if membership else None,
+        "project_division_name": (
+            membership.division.division_name
+            if membership and membership.division else None
+        ),
+        "project_role": membership.project_role if membership else None,
+        "project_role_label": (
+            project_role_label(membership.project_role) if membership else None
+        ),
     }
 
 
@@ -193,7 +207,7 @@ def _membership_payload(membership: ProjectMembership, viewer: User) -> dict:
         "project_role": membership.project_role,
         "is_active": membership.is_active,
         "joined_at": membership.joined_at,
-        "user": _safe_user(member, viewer),
+        "user": _safe_user(member, viewer, membership),
         "division": membership.division,
     }
 
@@ -381,16 +395,16 @@ def list_users(
             raise HTTPException(status_code=404, detail="Proyek tidak ditemukan")
         if not can_access_project(current_user, project):
             raise HTTPException(status_code=403, detail="Proyek tidak tersedia untuk akun ini")
-        user_ids = [
-            row[0] for row in db.query(ProjectMembership.user_id).filter(
-                ProjectMembership.project_id == project_id,
-                ProjectMembership.is_active == True,
-            ).all()
+        memberships = db.query(ProjectMembership).join(User).filter(
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.is_active == True,
+            User.is_active == True,
+            User.role != UserRole.OWNER,
+        ).order_by(User.name).all()
+        return [
+            _safe_user(membership.user, current_user, membership)
+            for membership in memberships
         ]
-        if current_user.id not in user_ids:
-            user_ids.append(current_user.id)
-        users = query.filter(User.id.in_(user_ids or [-1])).order_by(User.name).all()
-        return [_safe_user(user, current_user) for user in users]
 
     if current_user.role in (UserRole.DIRECTOR, UserRole.MANAGER):
         return query.order_by(User.name).all()
@@ -472,7 +486,7 @@ def create_user_with_project_setup(
     if membership:
         db.refresh(membership)
     return {
-        "user": _safe_user(user, current_user),
+        "user": _safe_user(user, current_user, membership),
         "membership": _membership_payload(membership, current_user) if membership else None,
         "invitation_sent": invitation_sent,
         "invitation_message": invitation_error or "Undangan aktivasi dikirim melalui email",
@@ -547,7 +561,7 @@ def update_user_project_setup(
     if membership:
         db.refresh(membership)
     return {
-        "user": _safe_user(user, current_user),
+        "user": _safe_user(user, current_user, membership),
         "membership": _membership_payload(membership, current_user) if membership else None,
     }
 
@@ -575,10 +589,17 @@ async def preview_employee_position_mapping(
         raise HTTPException(status_code=400, detail="CSV tidak memiliki header")
     reader.fieldnames = [str(field).strip().lower() for field in reader.fieldnames]
     headers = set(reader.fieldnames)
-    if not {"name", "email"}.issubset(headers) or not ({"position", "jabatan"} & headers):
+    has_position_column = bool({"position", "jabatan"} & headers)
+    has_legacy_assignment_columns = {"division_name", "project_role"}.issubset(headers)
+    if not {"name", "email"}.issubset(headers) or not (
+        has_position_column or has_legacy_assignment_columns
+    ):
         raise HTTPException(
             status_code=400,
-            detail="Template wajib memiliki kolom name, email, dan position",
+            detail=(
+                "Template wajib memiliki name, email, dan position; "
+                "dataset lama juga dapat memakai division_name dan project_role"
+            ),
         )
 
     employee_rows: list[dict] = []
@@ -587,17 +608,30 @@ async def preview_employee_position_mapping(
         name = _clean_csv_value(row, "name")
         email = _clean_csv_value(row, "email").lower()
         position = _clean_csv_value(row, "position") or _clean_csv_value(row, "jabatan")
-        if not any((name, email, position)):
+        legacy_project_role = _clean_csv_value(row, "project_role")
+        legacy_division_name = _clean_csv_value(row, "division_name")
+        if not any((name, email, position, legacy_project_role, legacy_division_name)):
             continue
-        if not all((name, email, position)):
+        has_legacy_assignment = bool(legacy_project_role and legacy_division_name)
+        if not name or not email or (not position and not has_legacy_assignment):
             raise HTTPException(
                 status_code=400,
-                detail=f"Baris {index}: name, email, dan position wajib diisi",
+                detail=(
+                    f"Baris {index}: name dan email wajib diisi bersama position, "
+                    "atau bersama division_name dan project_role dari dataset lama"
+                ),
             )
         if email in seen_emails:
             raise HTTPException(status_code=400, detail=f"Baris {index}: email duplikat dalam file")
         seen_emails.add(email)
-        employee_rows.append({"row": index, "name": name, "email": email, "position": position})
+        employee_rows.append({
+            "row": index,
+            "name": name,
+            "email": email,
+            "position": position,
+            "legacy_project_role": legacy_project_role,
+            "legacy_division_name": legacy_division_name,
+        })
     if not employee_rows:
         raise HTTPException(status_code=400, detail="CSV belum berisi data pengguna")
     if len(employee_rows) > 200:
@@ -610,15 +644,18 @@ async def preview_employee_position_mapping(
     ai_service = AIService()
     ai_mappings: list[dict] = []
     ai_error = None
-    if AIService.is_configured("analysis"):
+    ai_employee_rows = [
+        row for row in employee_rows if not row["legacy_project_role"]
+    ]
+    if ai_employee_rows and AIService.is_configured("analysis"):
         try:
             ai_mappings = await ai_service.map_employee_positions(
-                [{"row": row["row"], "position": row["position"]} for row in employee_rows],
+                [{"row": row["row"], "position": row["position"]} for row in ai_employee_rows],
                 role_catalog,
             )
         except Exception:
             ai_error = "Model AI sedang tidak tersedia; seluruh posisi dipetakan oleh fallback sistem dan wajib direview."
-    else:
+    elif ai_employee_rows:
         ai_error = "Model AI belum dikonfigurasi; seluruh posisi dipetakan oleh fallback sistem dan wajib direview."
 
     mapping_by_row = {
@@ -633,29 +670,57 @@ async def preview_employee_position_mapping(
     reviewed_rows = []
     fallback_count = 0
     for employee in employee_rows:
-        mapping = mapping_by_row.get(employee["row"], {})
-        mapped_role = role_by_code.get(str(mapping.get("project_role") or "").strip())
-        source = "ai"
-        if not mapped_role:
-            mapped_role = _fallback_project_role(employee["position"], role_catalog)
-            source = "system_fallback"
-            fallback_count += 1
+        legacy_project_role = employee["legacy_project_role"]
+        if legacy_project_role:
+            mapping = {}
+            mapped_role = role_by_code.get(legacy_project_role)
+            if not mapped_role:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Baris {employee['row']}: project_role {legacy_project_role} "
+                        "tidak valid atau sedang dinonaktifkan"
+                    ),
+                )
+            source = "legacy_dataset"
+        else:
+            mapping = mapping_by_row.get(employee["row"], {})
+            mapped_role = role_by_code.get(str(mapping.get("project_role") or "").strip())
+            source = "ai"
+            if not mapped_role:
+                mapped_role = _fallback_project_role(employee["position"], role_catalog)
+                source = "system_fallback"
+                fallback_count += 1
         try:
-            confidence = max(0.0, min(1.0, float(mapping.get("confidence", 0.35))))
+            confidence = (
+                1.0 if source == "legacy_dataset"
+                else max(0.0, min(1.0, float(mapping.get("confidence", 0.35))))
+            )
         except (TypeError, ValueError):
             confidence = 0.35
-        division_name = str(mapping.get("division_name") or "").strip()
+        division_name = (
+            employee["legacy_division_name"]
+            if source == "legacy_dataset"
+            else str(mapping.get("division_name") or "").strip()
+        )
         if not division_name:
             division_name = mapped_role.get("default_division") or "Operasional Proyek"
         global_role = global_role_for_project_role(mapped_role["code"])
         reviewed_rows.append({
-            **employee,
+            "row": employee["row"],
+            "name": employee["name"],
+            "email": employee["email"],
+            "position": employee["position"] or mapped_role["label"],
             "role": global_role.value,
             "division_name": division_name[:100],
             "project_role": mapped_role["code"],
             "project_role_label": mapped_role["label"],
             "confidence": confidence,
-            "reasoning": str(mapping.get("reasoning") or "Pemetaan berdasarkan posisi dan katalog role proyek.")[:500],
+            "reasoning": str(mapping.get("reasoning") or (
+                "Assignment dipertahankan dari dataset akun lama dan divalidasi terhadap katalog role proyek."
+                if source == "legacy_dataset"
+                else "Pemetaan berdasarkan posisi dan katalog role proyek."
+            ))[:500],
             "mapping_source": source,
             "existing_account": employee["email"] in existing_emails,
         })
@@ -737,6 +802,7 @@ async def import_users_from_csv(
     results = []
     pending_invitations: list[tuple[User, str]] = []
     created_count = 0
+    updated_count = 0
     skipped_count = 0
     for index, row in enumerate(reader, start=2):
         name = _clean_csv_value(row, "name")
@@ -745,11 +811,6 @@ async def import_users_from_csv(
             results.append({"row": index, "email": email, "status": "error", "message": "name dan email wajib diisi"})
             skipped_count += 1
             continue
-        if db.query(User).filter(User.email == email).first():
-            results.append({"row": index, "email": email, "status": "skipped", "message": "Email sudah terdaftar"})
-            skipped_count += 1
-            continue
-
         role_value = _clean_csv_value(row, "role") or UserRole.STAFF.value
         try:
             role = UserRole(role_value)
@@ -785,6 +846,79 @@ async def import_users_from_csv(
             skipped_count += 1
             continue
 
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user and existing_user.role in (UserRole.OWNER, UserRole.ADMIN):
+            results.append({
+                "row": index,
+                "email": email,
+                "status": "error",
+                "message": "Akun Admin Owner/Admin Proyek tidak dapat digunakan dari import pegawai",
+            })
+            skipped_count += 1
+            continue
+        if existing_user:
+            other_project_membership = db.query(ProjectMembership.id).filter(
+                ProjectMembership.user_id == existing_user.id,
+                ProjectMembership.project_id != project.id,
+                ProjectMembership.is_active == True,
+            ).first()
+            if other_project_membership:
+                results.append({
+                    "row": index,
+                    "email": email,
+                    "status": "skipped",
+                    "message": "Akun masih aktif pada proyek lain dan tidak dipindahkan otomatis",
+                    "role": existing_user.role.value,
+                })
+                skipped_count += 1
+                continue
+
+            user = existing_user
+            user.name = name
+            user.role = role
+            user.is_active = True
+            phone = _clean_csv_value(row, "phone")
+            telegram_id = _clean_csv_value(row, "telegram_id")
+            if phone:
+                user.phone = phone
+            if telegram_id:
+                user.telegram_id = telegram_id
+            user.division_id = project_division_id
+            membership = _upsert_project_membership(
+                db, user.id, project.id, project_division_id, project_role,
+            )
+            log_audit(
+                db,
+                actor_id=current_user.id,
+                action="users.import_reused",
+                entity_type="user",
+                entity_id=user.id,
+                project_id=project.id,
+                summary=f"Akun existing digunakan kembali dari import pegawai: {user.email}",
+                after={
+                    "email": user.email,
+                    "role": role.value,
+                    "project_id": project.id,
+                    "project_role": membership.project_role,
+                    "division_id": membership.division_id,
+                },
+            )
+            results.append({
+                "row": index,
+                "email": email,
+                "status": "updated",
+                "message": "Akun lama digunakan kembali dan assignment proyek diperbarui",
+                "role": role.value,
+            })
+            updated_count += 1
+            continue
+
+        try:
+            legacy_division_id = _optional_int(_clean_csv_value(row, "division_id"))
+        except ValueError:
+            results.append({"row": index, "email": email, "status": "error", "message": "division_id harus berupa angka"})
+            skipped_count += 1
+            continue
         user = User(
             name=name,
             email=email,
@@ -792,16 +926,16 @@ async def import_users_from_csv(
             role=role,
             phone=_clean_csv_value(row, "phone") or None,
             telegram_id=_clean_csv_value(row, "telegram_id") or None,
-            division_id=_optional_int(_clean_csv_value(row, "division_id")),
+            division_id=legacy_division_id or project_division_id,
             email_verified_at=None,
             email_verification_required=True,
             must_set_password=True,
         )
         db.add(user)
         db.flush()
-        membership = None
-        if project:
-            membership = _upsert_project_membership(db, user.id, project.id, project_division_id, project_role)
+        membership = _upsert_project_membership(
+            db, user.id, project.id, project_division_id, project_role,
+        )
         issued = issue_email_token(
             db, user, ACCEPT_INVITATION,
             ttl=timedelta(hours=settings.EMAIL_INVITATION_TTL_HOURS),
@@ -846,7 +980,12 @@ async def import_users_from_csv(
                 "Akun dibuat dan undangan email terkirim"
                 if delivered else "Akun dibuat, tetapi email belum terkirim. Gunakan kirim ulang undangan."
             )
-    return {"created": created_count, "skipped": skipped_count, "results": results}
+    return {
+        "created": created_count,
+        "updated": updated_count,
+        "skipped": skipped_count,
+        "results": results,
+    }
 
 
 @router.post("/credentials-document")

@@ -125,6 +125,11 @@ class UserResponse(BaseModel):
     email_verification_required: bool = False
     must_set_password: bool = False
     created_at: datetime
+    project_id: Optional[int] = None
+    project_division_id: Optional[int] = None
+    project_division_name: Optional[str] = None
+    project_role: Optional[str] = None
+    project_role_label: Optional[str] = None
 
     class Config:
         from_attributes = True

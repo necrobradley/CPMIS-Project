@@ -17,8 +17,10 @@ from app.api.v1.endpoints.users import (
     download_project_credentials_document,
     import_ai_reviewed_employees,
     import_users_from_csv,
+    list_users,
     preview_employee_position_mapping,
 )
+from app.api.v1.endpoints.projects import list_project_members
 from app.api.v1.endpoints import users as users_endpoint
 from app.core.security import get_password_hash, verify_password
 from app.db.database import Base
@@ -181,6 +183,92 @@ def test_account_dataset_can_create_project_division_by_name():
     membership = db.query(ProjectMembership).filter(ProjectMembership.user_id == imported.id).one()
     assert membership.division_id == division.id
     assert membership.project_role == "qa_qc_engineer"
+
+
+def test_legacy_dummy_account_dataset_stays_consistent_for_admin_and_project_manager():
+    db = build_database()
+    admin, _ = seed_project(db)
+    project = db.query(Project).filter(Project.owner_id == admin.id).one()
+    csv_content = (
+        "name,email,role,phone,telegram_id,division_name,project_role\n"
+        "Demo Project Manager,legacy.pm@example.com,manager,,,Manajemen Proyek,project_manager\n"
+    ).encode()
+    upload = UploadFile(filename="legacy-dummy-accounts.csv", file=io.BytesIO(csv_content))
+
+    preview = asyncio.run(preview_employee_position_mapping(file=upload, db=db, current_user=admin))
+
+    assert preview["accounts_created"] == 0
+    assert preview["rows"][0]["role"] == "manager"
+    assert preview["rows"][0]["project_role"] == "project_manager"
+    assert preview["rows"][0]["division_name"] == "Manajemen Proyek"
+    assert preview["rows"][0]["mapping_source"] == "legacy_dataset"
+
+    row = preview["rows"][0]
+    commit = asyncio.run(import_ai_reviewed_employees(
+        data=AIEmployeeImportCommitRequest(rows=[AIEmployeeImportRow(**row)]),
+        db=db,
+        current_user=admin,
+    ))
+    assert commit["created"] == 1
+
+    project_manager = db.query(User).filter(User.email == "legacy.pm@example.com").one()
+    admin_users = list_users(project_id=project.id, db=db, current_user=admin)
+    pm_members = list_project_members(
+        project_id=project.id,
+        division_id=None,
+        db=db,
+        current_user=project_manager,
+    )
+
+    assert {item["id"] for item in admin_users} == {item["user_id"] for item in pm_members}
+    admin_pm = next(item for item in admin_users if item["id"] == project_manager.id)
+    pm_membership = next(item for item in pm_members if item["user_id"] == project_manager.id)
+    assert admin_pm["project_role"] == pm_membership["project_role"] == "project_manager"
+    assert admin_pm["project_division_id"] == pm_membership["division_id"]
+    assert admin_pm["project_division_name"] == pm_membership["division"].division_name == "Manajemen Proyek"
+
+
+def test_legacy_dummy_dataset_reuses_orphaned_account_after_project_reset():
+    db = build_database()
+    admin, _ = seed_project(db)
+    project = db.query(Project).filter(Project.owner_id == admin.id).one()
+    orphaned = User(
+        name="PM dari Proyek Lama",
+        email="reusable.pm@example.com",
+        password_hash=get_password_hash("Existing-Password-123!"),
+        role=UserRole.STAFF,
+        is_active=True,
+    )
+    db.add(orphaned)
+    db.commit()
+    csv_content = (
+        "name,email,role,phone,telegram_id,division_name,project_role\n"
+        "Demo Project Manager,reusable.pm@example.com,manager,,,Manajemen Proyek,project_manager\n"
+    ).encode()
+    upload = UploadFile(filename="legacy-dummy-accounts.csv", file=io.BytesIO(csv_content))
+
+    preview = asyncio.run(preview_employee_position_mapping(file=upload, db=db, current_user=admin))
+    assert preview["rows"][0]["existing_account"] is True
+
+    row = preview["rows"][0]
+    result = asyncio.run(import_ai_reviewed_employees(
+        data=AIEmployeeImportCommitRequest(rows=[AIEmployeeImportRow(**row)]),
+        db=db,
+        current_user=admin,
+    ))
+
+    db.refresh(orphaned)
+    membership = db.query(ProjectMembership).filter(
+        ProjectMembership.project_id == project.id,
+        ProjectMembership.user_id == orphaned.id,
+    ).one()
+    assert result["created"] == 0
+    assert result["updated"] == 1
+    assert orphaned.name == "Demo Project Manager"
+    assert orphaned.role == UserRole.MANAGER
+    assert membership.project_role == "project_manager"
+    assert membership.division.division_name == "Manajemen Proyek"
+    assert verify_password("Existing-Password-123!", orphaned.password_hash)
 
 
 def test_ai_preview_maps_position_without_creating_account(monkeypatch):
