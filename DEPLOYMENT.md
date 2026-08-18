@@ -16,37 +16,26 @@ Karena itu, data tidak bergantung pada database atau folder lokal komputer.
 
 ## Setup proyek melalui website
 
-Pada instalasi pertama, buka halaman **Setup**, kemudian isi:
+Pada instalasi pertama, buka halaman **Setup** untuk membuat satu Admin Proyek
+dan satu wadah proyek kosong. Tahap ini tidak mengimpor dataset, dokumen,
+pegawai, divisi, atau task.
 
-1. paket ZIP proyek;
-2. `BOOTSTRAP_SECRET` dari environment backend;
-3. email dan password administrator;
-4. Telegram ID administrator atau staf yang akan melakukan demo.
-
-Paket ZIP harus memuat berkas inti berikut:
+Setelah Admin Proyek memverifikasi email dan login, lakukan import paket ZIP
+melalui **Admin Console → Import Project Dataset**. Paket ZIP harus memuat
+berkas inti berikut:
 
 - `30_AI_Training_Dataset_Master.json`;
 - `30_AI_Knowledge_Graph.json`;
 - `30_AI_Instruction_Dataset.jsonl` (opsional).
 
-Setelah impor selesai, website menampilkan akun yang dihasilkan untuk setiap
-role beserta password awalnya. Simpan password tersebut saat ditampilkan,
-karena password awal tidak dapat dibaca kembali dari database. Impor proyek
-berikutnya dilakukan melalui **Admin Console → Import Project Dataset**.
+Daftar pegawai diimpor secara terpisah dari menu **Pengguna**. Password tidak
+disimpan di dataset CSV. Register kredensial proyek dibuat setelah Admin
+Proyek meninjau akun, lalu password acak hanya ditampilkan melalui dokumen
+rahasia yang dihasilkan sistem.
 
-### Paket dummy presentasi
-
-Paket demo lengkap tersedia pada:
-
-```text
-C:\Users\User\CPMIS-Project\demo-data\CPMIS_Demo_Pusat_Inovasi_2026.zip
-```
-
-Paket yang sama dapat diunduh dari halaman Setup atau Admin Console. Manifest
-demo di dalam ZIP mengisi task lintas role, laporan, approval, komunikasi,
-notifikasi, dokumen, vendor, produktivitas, inspeksi, NCR, handover, Digital
-Twin, dan audit trail. Isi Telegram ID staf saat mengimpor agar task lapangan
-dapat diperbarui melalui bot.
+Dataset proyek, daftar akun, register kredensial, dan paket demo tidak
+disertakan dalam source archive. Simpan seluruh data operasional di lokasi
+terpisah yang aman.
 
 ## Alur AI saat demo
 
